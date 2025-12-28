@@ -21,7 +21,6 @@ project_info:
         peaks: "important_processed/peaks"
       downstream_res:
         homer: "downstream_res/homer"
-        deseq2: "downstream_res/deseq2"
         counts: "downstream_res/counts"
       middle_file:
         trimmed_fastq: "middle_file/trimmed_fastq"
@@ -31,9 +30,6 @@ project_info:
       logs: "logs"
 
 workflow_resources:
-  execution:
-    use_singularity: true
-    singularity_image_folder: "/home/groups/MaxsonLab/software/singularity-containers/pipeline_containers/cuttag/image_files"
   compute:
     threads_default: 8
     memory_gb_default: 32
@@ -41,8 +37,6 @@ workflow_resources:
     cluster_config: "config/cluster.yaml"
 
 pipeline_steps:
-  preprocessing:
-    trim_adapters: true
   alignment:
     aligner: "bowtie2"
   peaks:
@@ -70,4 +64,4 @@ reference:
   genes_bed: "genes/hg38_refseq_genes.bed"
   chrom_sizes: "genes/hg38.chrom.sizes"
   adapter_fasta: "genes/adapter_seqs.fa"
-  blacklist: ""
+  blacklist: "blacklist/ENCODE_hg38-blacklist.v2.bed"

@@ -1,395 +1,324 @@
-# cutTag-pipeline
+# CUT&Tag Snakemake Pipeline
 
-<!-- [![Linux](https://svgshare.com/i/Zhy.svg)](https://svgshare.com/i/Zhy.svg) -->
-![ci/cd status](https://github.com/maxsonBraunLab/cutTag-pipeline/actions/workflows/test.yaml/badge.svg?branch=test)
-[![snakemake minimum](https://img.shields.io/badge/snakemake->=5.32-<COLOR>.svg)](https://shields.io/)
-![Maintainer](https://img.shields.io/badge/maintainer-gartician-blue)
-![Maintainer](https://img.shields.io/badge/maintainer-bioThai-blue)
+A comprehensive Snakemake workflow for processing CUT&Tag sequencing data, from raw FASTQ files to peak calling, quality control, and reproducibility analysis.
 
-Snakemake pipeline for Cut&amp;Tag analysis 
+## Overview
 
-# Setup
+This pipeline processes CUT&Tag (Cleavage Under Targets and Tagmentation) sequencing data through the following stages:
 
-If you do not have a Snakemake environment, please follow the instructions in the maxsonBraunLab [Snakemake setup repository](https://github.com/maxsonBraunLab/snakemake_setup) to create one.
+1. **Preprocessing**: Adapter trimming and quality control (optional)
+2. **Alignment**: Read alignment to reference genome (Bowtie2 or BWA-MEM2)
+3. **Post-alignment**: Duplicate marking, indexing, fragment length analysis
+4. **Peak Calling**: MACS2 peak calling with marker-specific parameters
+5. **Quality Control**: FRiP, library complexity, reproducibility metrics
+6. **Reporting**: MultiQC integration with custom statistics
 
-**NOTE:** Some of the pipeline setup instructions are tailored for working on Oregon Health and Science University's Linux-based high-performance computing cluster (ARC, formerly Exacloud). If you have access to another computing cluster, then some steps may need to be modified accordingly.
+## Features
 
-**NOTE:** Exacloud users transitioning to ARC at the end of 2024 may need to set a new container cache directory (`APPTAINER_CACHEDIR`) in their `~/.bashrc` file as shown in the [Set Singularity/Apptainer cache directory](#2-set-singularityapptainer-cache-directory) section below.
+- **Flexible alignment**: Supports Bowtie2 and BWA-MEM2 aligners
+- **Marker-specific peak calling**: Configurable q-values and broad/narrow peak parameters per histone mark
+- **Comprehensive QC**: FRiP, library complexity (Preseq), genomic coverage, reproducibility analysis
+- **MultiQC integration**: Custom statistics including peak counts, genomic coverage, and Preseq metrics
+- **Reproducibility assessment**: Jaccard similarity and correlation analysis for replicates
+- **Blacklist filtering**: Optional blacklist region filtering
+- **Conda/Singularity support**: Reproducible environments
 
+## Requirements
 
-## 1. Configure the project directory
+### Software Dependencies
 
-On the Github repo for this pipeline, click the green "Code" button near the top right corner and copy the Clone / HTTPS URL (ends with .git). Then run the following on the command line:
+- **Snakemake** ≥ 8.20.1
+- **Python** ≥ 3.7
+- **Conda** or **Singularity** (for environment management)
+- **SLURM** (optional, for cluster execution)
+
+### Reference Data
+
+- Reference genome FASTA file
+- Genome index (Bowtie2 or BWA-MEM2)
+- Chromosome sizes file
+- Gene annotation BED file (optional)
+- Adapter sequences FASTA (if trimming)
+- Blacklist regions BED (optional)
+
+## Installation
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd cuttag_sm
+```
+
+2. Install Snakemake (if not already installed):
+```bash
+conda install -c bioconda -c conda-forge snakemake
+```
+
+3. Configure your environment:
+   - Edit `config/config.yml` with your project-specific settings
+   - Prepare your sample sheet (see Configuration section)
+
+## Configuration
+
+### Main Configuration File (`config/config.yml`)
+
+The main configuration file contains project information, pipeline settings, and reference paths:
+
+```yaml
+project_info:
+  name: "your_project_name"
+  description: "Project description"
+  genome: "hg38"  # or "mm10", etc.
+  samples:
+    table: "config/your_samplesheet.csv"
+    pep_config: "config/pep/project_config.yaml"
+  outputs:
+    root: "{process_dir}/{project_name}/"
+
+pipeline_steps:
+  alignment:
+    aligner: "bowtie2"  # or "bwa-mem2"
+  peaks:
+    use_igg: false
+    igg_token: "IgG"
+    n_intersects: 2
+  peak_qval:
+    CTCF: 0.0001
+    H3K4me3: 0.001
+    H3K27ac: 0.001
+    # ... marker-specific q-values
+  broad_marks:
+    - H3K27me3
+    - H3K9me3
+  broad_params:
+    slocal: 10000
+    max-gap: 1000
+    broad-cutoff: 0.01
+
+reference:
+  genome_index: "{database_dir}/hg38/indices_for_Bowtie2/hg38"
+  genome_fasta: "{database_dir}/hg38/hg38.fa"
+  chrom_sizes: "genes/hg38.chrom.sizes"
+  adapter_fasta: "genes/adapter_seqs.fa"
+  blacklist: ""  # Optional: path to blacklist BED file
+```
+
+### Sample Sheet Format
+
+The sample sheet should be a CSV file with the following columns:
+
+- `sample`: Sample identifier
+- `run`: Run/replicate number
+- `R1`: Path to R1 FASTQ file
+- `R2`: Path to R2 FASTQ file
+- `mark`: Histone mark or protein (e.g., "H3K27ac", "CTCF")
+- `condition`: Experimental condition
+- `igg`: IgG control sample (if applicable)
+- `sample_base`: Base sample name for grouping replicates
+
+Example:
+```csv
+sample,run,R1,R2,mark,condition,igg,gopeaks,sample_base
+Sample1,1,/path/to/Sample1_R1.fastq.gz,/path/to/Sample1_R2.fastq.gz,H3K27ac,Condition1,Sample1_IgG,-,Sample1
+Sample1,2,/path/to/Sample1_rep2_R1.fastq.gz,/path/to/Sample1_rep2_R2.fastq.gz,H3K27ac,Condition1,Sample1_IgG,-,Sample1
+```
+
+## Usage
+
+### Basic Execution
+
+Run the pipeline with Snakemake:
 
 ```bash
-# cd into a project directory
-
-# paste the copied URL after `git clone` command to get a copy of pipeline
-git clone <URL for repo>
-
-# navigate to the main pipeline directory (where the snakefile is)
-cd <main pipeline directory>
-
-#create a directory for your fastq files
-mkdir -p data/raw
-
-# link fastqs to data/raw
-ln -s /path/to/fastq/files/sample1_R1.fastq.gz data/raw
-ln -s /path/to/fastq/files/sample1_R2.fastq.gz data/raw
-ln -s /path/to/fastq/files/sample2_R1.fastq.gz data/raw
-ln -s /path/to/fastq/files/sample2_R2.fastq.gz data/raw
-...
-
-# make scripts executable
-chmod +x src/*.py src/*.sh *.sh
+snakemake --configfile config/config.yml -c <number_of_cores>
 ```
 
-**IMPORTANT**
+### Cluster Execution (SLURM)
 
-After creating the symlinks, rename all the symlinks in data/raw to the following format: `{condition}_{replicate}_{mark}_{R1|R2}.fastq.gz`
-
-For example, a file with this original name **LIB200706TB_M6Q3_RBP1_S93_L001_R1_001.fastq.gz** will be renamed to
-**M6Q_3_RBP1_R1.fastq.gz**
-
-## 2. Make the sample sheet, DEseq2 metadata, and Diffbind metadata.
-
-Activate an environment containing snakemake, and then run the script `make_sample_sheet.py` script from the root of the directory.
+For cluster environments, use a profile:
 
 ```bash
-python src/make_sample_sheet.py data/raw
+snakemake --configfile config/config.yml --profile slurm
 ```
 
-This will make a samplesheet for the experiment called `samplesheet.tsv` in the root of the directory. The files `src/deseq2_metadata.csv` and `src/diffbind_config.csv` will also be created. The contents of the samplesheet will be structured like the following example:
+### Dry Run
 
-```
-sample	R1	R2	mark	condition	igg
-HoxE_1_IgG	data/raw/HoxE_1_IgG_R1.fastq.gz	data/raw/HoxE_1_IgG_R2.fastq.gz	IgG	HoxE	HoxE_1_IgG
-HoxE_1_Rbp1	data/raw/HoxE_1_Rbp1_R1.fastq.gz	data/raw/HoxE_1_Rbp1_R2.fastq.gz	Rbp1	HoxE	HoxE_1_Rbp1
-HoxE_2_Rbp1	data/raw/HoxE_2_Rbp1_R1.fastq.gz	data/raw/HoxE_2_Rbp1_R2.fastq.gz	Rbp1	HoxE	HoxE_2_Rbp1
-HoxE_3_Rbp1	data/raw/HoxE_3_Rbp1_R1.fastq.gz	data/raw/HoxE_3_Rbp1_R2.fastq.gz	Rbp1	HoxE	HoxE_3_Rbp1
-HoxM_1_IgG	data/raw/HoxM_1_IgG_R1.fastq.gz	data/raw/HoxM_1_IgG_R2.fastq.gz	IgG	HoxM	HoxM_1_IgG
-HoxM_1_Rbp1	data/raw/HoxM_1_Rbp1_R1.fastq.gz	data/raw/HoxM_1_Rbp1_R2.fastq.gz	Rbp1	HoxM	HoxM_1_Rbp1
-HoxM_2_Rbp1	data/raw/HoxM_2_Rbp1_R1.fastq.gz	data/raw/HoxM_2_Rbp1_R2.fastq.gz	Rbp1	HoxM	HoxM_2_Rbp1
-HoxM_3_Rbp1	data/raw/HoxM_3_Rbp1_R1.fastq.gz	data/raw/HoxM_3_Rbp1_R2.fastq.gz	Rbp1	HoxM	HoxM_3_Rbp1
-HoxW_1_IgG	data/raw/HoxW_1_IgG_R1.fastq.gz	data/raw/HoxW_1_IgG_R2.fastq.gz	IgG	HoxW	HoxW_1_IgG
-HoxW_1_Rbp1	data/raw/HoxW_1_Rbp1_R1.fastq.gz	data/raw/HoxW_1_Rbp1_R2.fastq.gz	Rbp1	HoxW	HoxW_1_Rbp1
-HoxW_2_Rbp1	data/raw/HoxW_2_Rbp1_R1.fastq.gz	data/raw/HoxW_2_Rbp1_R2.fastq.gz	Rbp1	HoxW	HoxW_2_Rbp1
-HoxW_3_Rbp1	data/raw/HoxW_3_Rbp1_R1.fastq.gz	data/raw/HoxW_3_Rbp1_R2.fastq.gz	Rbp1	HoxW	HoxW_3_Rbp1
-```
-
-The script splits the file name on the '_' and uses the first split for the condition, and the second split for the mark. The 'igg' column is the same as the 'sample' column and should be manually replaced with the sample name of the IGG or control you would like to use for that sample. If the sample is an IgG it can be the same as its name, and won't affect peak calling. 
-
-So a fixed version of the table above would look like this:
-
-
-```
-sample	R1	R2	mark	condition	igg
-HoxE_1_IgG	data/raw/HoxE_1_IgG_R1.fastq.gz	data/raw/HoxE_1_IgG_R2.fastq.gz	IgG	HoxE	HoxE_1_IgG
-HoxE_1_Rbp1	data/raw/HoxE_1_Rbp1_R1.fastq.gz	data/raw/HoxE_1_Rbp1_R2.fastq.gz	Rbp1	HoxE	HoxE_1_IgG
-HoxE_2_Rbp1	data/raw/HoxE_2_Rbp1_R1.fastq.gz	data/raw/HoxE_2_Rbp1_R2.fastq.gz	Rbp1	HoxE	HoxE_1_IgG
-HoxE_3_Rbp1	data/raw/HoxE_3_Rbp1_R1.fastq.gz	data/raw/HoxE_3_Rbp1_R2.fastq.gz	Rbp1	HoxE	HoxE_1_IgG
-HoxM_1_IgG	data/raw/HoxM_1_IgG_R1.fastq.gz	data/raw/HoxM_1_IgG_R2.fastq.gz	IgG	HoxM	HoxM_1_IgG
-HoxM_1_Rbp1	data/raw/HoxM_1_Rbp1_R1.fastq.gz	data/raw/HoxM_1_Rbp1_R2.fastq.gz	Rbp1	HoxM	HoxM_1_IgG
-HoxM_2_Rbp1	data/raw/HoxM_2_Rbp1_R1.fastq.gz	data/raw/HoxM_2_Rbp1_R2.fastq.gz	Rbp1	HoxM	HoxM_1_IgG
-HoxM_3_Rbp1	data/raw/HoxM_3_Rbp1_R1.fastq.gz	data/raw/HoxM_3_Rbp1_R2.fastq.gz	Rbp1	HoxM	HoxM_1_IgG
-HoxW_1_IgG	data/raw/HoxW_1_IgG_R1.fastq.gz	data/raw/HoxW_1_IgG_R2.fastq.gz	IgG	HoxW	HoxW_1_IgG
-HoxW_1_Rbp1	data/raw/HoxW_1_Rbp1_R1.fastq.gz	data/raw/HoxW_1_Rbp1_R2.fastq.gz	Rbp1	HoxW	HoxW_1_IgG
-HoxW_2_Rbp1	data/raw/HoxW_2_Rbp1_R1.fastq.gz	data/raw/HoxW_2_Rbp1_R2.fastq.gz	Rbp1	HoxW	HoxW_1_IgG
-HoxW_3_Rbp1	data/raw/HoxW_3_Rbp1_R1.fastq.gz	data/raw/HoxW_3_Rbp1_R2.fastq.gz	Rbp1	HoxW	HoxW_1_IgG
-```
-
-For this example there was only one IgG per condition, so the sample name corresponding to that IGG was used for each sample in the condition. In the case that each sample had its own control file, each entry would correspond to the IgG for that sample. If only one IgG was used in the whole experiment, then its sample name could be used for each row. If you are not using IgG set config['USEIGG'] to false, and don't modify the samplesheet.
-
-
-## 3. Edit configuration files 
-
-1. Edit runtime configuration in the file `config.yml`:
-
-   - If using Singularity/Apptainer containers instead of Conda, specify the path to the folder containing the Singularity image files (.sif).
-   
-   - Specify whether or not to trim adapters and filter out low-quality reads from raw reads to improve downstream alignment rate. You can decide based on adapter content in the sequencing core's FastQC reports.
-
-   - Specify the path to a FASTA file containing sequences to trim from reads. The default is to use `src/adapter_seqs.fa`. Additional sequences can be added to the file if needed. This file path is ignored if adapter trimming is set to False. 
-   
-   - Specify the path to the fastq screen configuration file.
-
-   - Specify the path to the bowtie2 index for the genome you are aligning to.
-
-   - Specify the path to the genome FASTA file.
-
-   - Specify whether or not to use IGG for peak calling.
-
-   - Specify the path to the chromosome sizes. 
-
-   - Optionally, specify the path to a tab-delimited file of blacklisted genomic regions to filter out. If blacklist removal is not desired, then set this to an empty string with quotations ("").
-
-2. The pipeline detects samples in the subdirectory data/raw with the following assumptions:
-
-   - Paired end reads
-
-   - Read 1 and 2 are designated using "_R1", and "_R2"
-
-   - Samples are designated in the following convention: `{condition}_{replicate}_{mark}_{R1|R2}.fastq.gz`. This format affects the output files and ensures the bigwig files from the same marks are merged.  
-
-3. Make sure the `src/deseq2_metadata.csv` looks right. The file is created when you run `make_sample_sheet.py` and should have the following properties:
-
-   - Should have two columns labeled "sample", and "condition"
-   - The sample column corresponds to the individual biological replicates (includes all fields around the "_" delimiter). 
-   - The condition should be the condition for each sample, which uses the first field with the "_" delimiter.
-   - If you have multiple conditions and marks to analyze, you can introduce more columns into this file and adjust the deseq2.R file to account for extra covariates. 
-
- Below is an example of what the `src/deseq2_metadata.csv` file might look like for an experiment with various conditions, replicates, and marks/antibody targets. Note that the IgG samples are not included in differential expression analysis:
-
-```
-sample,condition
-HoxE_1_Rbp1,HoxE
-HoxE_2_Rbp1,HoxE
-HoxE_3_Rbp1,HoxE
-HoxM_1_Rbp1,HoxM
-HoxM_2_Rbp1,HoxM
-HoxM_3_Rbp1,HoxM
-HoxW_1_Rbp1,HoxW
-HoxW_2_Rbp1,HoxW
-HoxW_3_Rbp1,HoxW
-```
-
-## 4. Set up SLURM integration (for batch jobs)
-
-Please follow the instructions in the "Snakemake + SLURM integration" section below if you are running the pipeline as a batch job and don't yet have a [SLURM profile](https://github.com/Snakemake-Profiles/slurm) set up. The SLURM profile will configure default settings for SnakeMake to interact with SLURM. More information can be found [here](https://github.com/maxsonBraunLab/slurm).
-
-**NOTE:** If you already have a SLURM profile set up to run Snakemake with Conda (i.e., includes settings like use-conda, conda-prefix) but would like to run Snakemake with SLURM and Singularity/Apptainer integration, please follow the instructions in the "Snakemake + SLURM + Singularity/Apptainer integration" section below.
-
-### Snakemake + SLURM integration
-
-Download the `slurm` folder from the maxsonBraunLab [repository](https://github.com/maxsonBraunLab/slurm) and copy the entire thing to `~/.config/snakemake`. 
-
-Your file configuration for SLURM should be as follows:
-
-```
-~/.config/snakemake/slurm/<files>
-```
-
-Change the file permissions for the scripts in the `slurm` folder so that they are executable. To do this, run:
+Test the workflow without executing:
 
 ```bash
-chmod +x ~/.config/snakemake/slurm/slurm*
+snakemake --configfile config/config.yml -n
 ```
 
-### Snakemake + SLURM + Singularity/Apptainer integration
+### Specific Targets
 
-**NOTE:** The `~/.config/snakemake/slurm/config.yaml` file contains settings for SnakeMake to interact with SLURM and, optionally, Conda or Singularity/Apptainer. If you already have an exisiting SLURM profile configured to run Snakemake with Conda (i.e., includes settings like use-conda, conda-prefix), then you will need to create a separate profile for running Snakemake with Singularity/Apptainer. To do this: 
-
-1. Copy contents of base slurm profile into another folder for slurm_singularity profile:
+Run specific outputs:
 
 ```bash
-cp -r ~/.config/snakemake/slurm ~/.config/snakemake/slurm_singularity
+snakemake --configfile config/config.yml multiqc_report.html
 ```
 
-2. Make profile scripts executable:
+## Pipeline Steps
 
-```bash
-chmod +x ~/.config/snakemake/slurm_singularity/slurm*
-```
+### 1. Preprocessing (`rules/preprocess.smk`)
 
-3. Remove any conda-specific settings (e.g. use-conda, conda-prefix, etc.) from `~/.config/snakemake/slurm_singularity/config.yaml`
+- **Adapter trimming**: Optional trimming using fastp
+- **Quality control**: FastQC-style reports
 
-4. (Optional) Add the following lines to end of `~/.config/snakemake/slurm_singularity/config.yaml` file:
+### 2. Alignment (`rules/align.smk`)
 
-```
-use-singularity: True
-keep-going: True
-rerun-incomplete: True
-printshellcmds: True
-```
+- **Read alignment**: Bowtie2 or BWA-MEM2
+- **Sorting**: Coordinate-sorted BAM files
+- **Duplicate marking**: Sambamba markdup
+- **Indexing**: BAM index generation
 
-## 5. (Optional) SnakeMake + Singularity/Apptainer Setup
+### 3. Post-alignment (`rules/postalign.smk`)
 
-If you would like to run the pipeline using Singularity/Apptainer containers instead of Conda, please follow additional setup and execution instructions in the "Reproducible results with SnakeMake + Singularity/Apptainer" section below.
+- **Fragment length analysis**: Calculate fragment size distributions
+- **BigWig track generation**: Normalized coverage tracks
 
+### 4. Peak Calling (`rules/peaks.smk`)
 
-# Execution
+- **MACS2 peak calling**:
+  - **Broad peaks**: For marks like H3K27me3, H3K9me3
+  - **Narrow peaks**: For other marks (CTCF, H3K4me3, etc.)
+- **Marker-specific parameters**:
+  - Q-values configured per mark
+  - Broad peak parameters (slocal, max-gap, broad-cutoff)
+- **Blacklist filtering**: Optional removal of blacklisted regions
+- **Peak processing**: Conversion to BED format
 
-A "dry-run" can be accomplished to see what and how files will be generated by using the command:
+### 5. Quality Control (`rules/qc.smk`)
 
-```bash
-snakemake -nrp
-```
+- **FRiP (Fraction of Reads in Peaks)**: DeepTools plotEnrichment
+- **Library complexity**: Preseq lc_extrap
+- **Fingerprinting**: DeepTools plotFingerprint
+- **MultiQC report**: Aggregated QC metrics
 
-To invoke the pipeline, please use either of the two options below:
+### 6. Reproducibility (`rules/reproducibility.smk`)
 
-```bash
-# run in interactive mode. Recommended for running light jobs.
-snakemake -j <n cores> --use-conda --conda-prefix $CONDA_PREFIX_1/envs
+- **BAM correlation**: DeepTools multiBamSummary and plotCorrelation
+- **Peak similarity**: bedtools jaccard for replicate comparison
 
-# run in batch mode. Recommended for running intensive jobs.
-sbatch run_pipeline_conda.sh
-```
+### 7. Statistics
 
-For users running the pipeline in batch mode, `run_pipeline_conda.sh` is a wrapper script that contains the following command:
+- **Peak counting**: Per-sample peak counts
+- **Genomic coverage**: Percentage of genome covered by peaks
 
-```bash
-snakemake -j <n jobs> --use-conda --conda-prefix $CONDA_PREFIX_1/envs --profile slurm --cluster-config cluster.yaml
-```
-
-Additional setup instructions are provided in the wrapper script.
-
-You can standardize further arguments for running the pipeline in batch mode using the following [instructions](https://github.com/Snakemake-Profiles/slurm). The maxsonBraunLab repository [slurm](https://github.com/maxsonBraunLab/slurm) contains further instructions to set up a SnakeMake slurm profile.
-
-
-# Reproducible results with SnakeMake + Singularity/Apptainer
-
-To ensure the reproducibility of your results and reduce environment setup issues, we recommend running a SnakeMake workflow using Singularity/Apptainer containers. These containers standardize the installation of bioinformatics software (e.g. bowtie2, samtools, deseq2). 
-
-Make sure to complete the general pipeline/data setup instructions above before running the pipeline. 
-
-## SnakeMake + Singularity/Apptainer Setup
-
-If you have access to the MaxsonLab storage space on ARC, then you can skip the first setup step below and use the default `SINGULARITY_IMAGE_FOLDER` path specified in the `config.yml` file to access the containers for this pipeline. 
-
-If you have previously run this pipeline with Singularity/Apptainer and already built the needed containers, then you can set the `SINGULARITY_IMAGE_FOLDER` path in the `config.yml` to the folder where your container images are stored.
-
-### 1. (Optional) Build Singularity/Apptainer containers
-
-Do this step if you do **not** have access to the MaxsonLab storage space on ARC and have not run this pipeline with Singularity/Apptainer before. You will need to build the necessary containers from the definition files provided in the `singularity_definition_files` folder. 
-
-To build containers without requiring root access on ARC, you will need to create a [Sylabs](https://cloud.sylabs.io/) account (you can use your Github account to log in). After logging in, navigate to `Dashboard > Access Tokens` and create a new access token. Make sure to copy and save the token into a secure place. 
-
-This token will allow you to access the Sylabs remote builder tool from the command line. Note that every user is limited to 500 minutes of build time per month.
-
-After generating a Sylabs access token, you will need to log into Sylabs from the ARC command line. To do this:
-
-```bash
-# get onto an interactive/compute node
-srun -p interactive --time=3:00:00 --pty bash
-
-# input your access token when prompted
-singularity remote login
-```
-
-Now you're ready to start building containers. To do this, navigate to the main folder of the pipeline (where the Snakefile is) and run the `singularity_build_remote.sh` script as follows:
-
-```bash
-# create folder to store build logs
-mkdir -p jobs/singularity_build_remote
-
-# make sure to follow any additional instructions in the script file before executing
-
-# provide the path to a folder where you want to store your container images 
-# (don't include a slash "/" at the end of path)
-sbatch singularity_build_remote.sh <path_to_output_folder>
-```
-
-
-### 2. Set Singularity/Apptainer cache directory
-
-By default, Singularity/Apptainer will create and use a cache directory in your personal user root folder (i.e. in `/home/users/<username>`). This may create problems as there is limited space in a user's root folder on ARC. To avoid issues with space in your root folder, you can set the Singularity/Apptainer cache directory path to a folder in your lab group directory like this:
-
-```bash
-# make a cache folder inside your lab user folder 
-mkdir /home/groups/MaxsonLab/<your_user_folder>/cache
-
-# make the path to the cache folder accessible to other processes
-export SINGULARITY_CACHEDIR="/home/groups/MaxsonLab/<your_user_folder>/cache"
-export APPTAINER_CACHEDIR="/home/groups/MaxsonLab/<your_user_folder>/cache"
-```
-
-If you are an experienced user, you can add the `export` lines above to your `~/.bashrc` file. Otherwise, run the `export` command before executing the pipeline.
-
-
-## SnakeMake + Singularity/Apptainer Execution
-
-Singularity/Apptainer documentation on Exacloud can be found [here](https://wiki.ohsu.edu/display/ACC/Exacloud%3A+Singularity). 
-
-Singularity/Apptainer documentation on ARC can be found [here](https://wiki.ohsu.edu/display/ACC/Apptainer). 
-
-A "dry-run" can be accomplished to see what and how files will be generated by using the command:
-
-```bash
-snakemake -nrp
-```
-
-To invoke the pipeline, please use either of the two options below. 
-
-**NOTE:** Make sure to use double quotes for the `--bind` argument, and insert an integer for the `-j` flag. The `--bind` argument binds the host (ARC) paths to the container to access the genome indices and the path to the raw sequencing files. When Snakemake is executed directly on an interactive terminal, the `-j` flag represents the max number of cores to use. When executed via a batch script, the `-j` flag represents the max number of jobs to run at a time. 
-
-**Option 1: Singularity/Apptainer + interactive run**
-
-```bash
-# get onto an interactive/compute node
-srun --time=12:00:00 --pty bash
-
-# set folder paths
-# fastq_folder should be absolute/full path to folder containing raw FASTQ files (not the symlinks)
-indices_folder="/home/groups/MaxsonLab/indices"
-fastq_folder="/set/full/path/here"
-
-# run pipeline
-snakemake -j <n_cores> \
---use-singularity \
---singularity-args "--bind $indices_folder,$fastq_folder"
-```
-
-**Option 2: Singularity/Apptainer + slurm (batch) run**
-
-For users running the Singularity/Apptainer version of the pipeline in batch mode, `run_pipeline_singularity.sh` is a wrapper script for the pipeline. You will need to add the appropriate FASTQ folder path to the script prior to running. Additional instructions are provided in the wrapper script.
-
-```bash
-# run pipeline
-sbatch run_pipeline_singularity.sh
-```
-
-# Method
-
-With adapter trimming enabled and blacklist removal disabled (default):
-
-![](rulegraph3.svg)
-
-With blacklist removal enabled:
-
-![](rulegraph4.svg)
-
-
-# Output
-
-Below is an explanation of each output directory:
+## Output Structure
 
 ```
-aligned - sorted and aligned sample bam files
-callpeaks - the output of callpeaks.py with peak files and normalized bigwigs for each sample.
-counts - the raw counts for each mark over a consensus peak list
-
-custom_report - Contains an HTML file with quick summary tables of QC metrics for each sample, grouped by mark and condition for convenient comparison. This report complements the QC report generated by MultiQC.
-
-deseq2 - the results of DESeq2 for each counts table (by mark). Note that because each input counts table is generated for consensus peak regions, DESeq2 normalizes these tables by counts in consensus peaks rather than by entire library size.
-
-diffbind - the results of Diffbind for each mark. Note that here, counts are normalized by entire library size rather than just counts in peaks.
-
-dtools - fingerprint plot data for multiqc to use
-fastp - adapter-trimmed FASTQ files (if adapter-trimming option is enabled in `config.yml`)
-logs - runtime logs for each snakemake rule
-markd - duplicate marked bam files
-multiqc - contains the file multiqc_report.html with a lot of QC info about the experiment.
-plotEnrichment - FRIP statistics for each mark
-preseq - library complexity data for multiqc report
+{output_base_dir}/
+├── Important_processed/
+│   ├── Bam/
+│   │   ├── {sample}.sorted.markd.bam
+│   │   └── {sample}.sorted.markd.bam.bai
+│   ├── Track/
+│   │   └── tracks/{sample}.bw
+│   └── Peaks/
+│       └── callpeaks/
+│           ├── macs2_broad_{sample}_peaks.broadPeak
+│           ├── macs2_narrow_{sample}_peaks.narrowPeak
+│           └── {sample}_peaks.bed
+├── Report/
+│   ├── multiqc/
+│   │   └── multiqc_report.html
+│   ├── plotEnrichment/
+│   │   ├── frip_{sample}.tsv
+│   │   └── frip.html
+│   ├── preseq/
+│   │   └── lcextrap_{sample}.txt
+│   ├── peak_stat/
+│   │   ├── peakcount/
+│   │   │   └── {sample}_peakcount.txt
+│   │   └── coverage_report.tsv
+│   ├── bamReproducibility/
+│   │   ├── {sample_rep}_global_rep_cor.txt
+│   │   └── {sample_rep}_global_rep_heatmap.pdf
+│   └── bedtools_jaccard/
+│       └── {sample_rep}_jaccard.txt
+└── logs/
+    └── {rule}_{sample}.log
 ```
 
-## Deseq2 outputs
+## Quality Control Metrics
 
-Each mark should have the following output files:
+The pipeline generates comprehensive QC metrics:
 
+1. **FRiP (Fraction of Reads in Peaks)**: Percentage of reads overlapping called peaks
+2. **Library Complexity**: Expected distinct reads at various sequencing depths (Preseq)
+3. **Genomic Coverage**: Percentage of genome covered by peaks
+4. **Peak Counts**: Number of peaks per sample
+5. **Reproducibility**:
+   - Spearman correlation between replicates (BAM level)
+   - Jaccard similarity between peak sets
+
+All metrics are integrated into the MultiQC report for easy visualization.
+
+## Customization
+
+### Marker-Specific Peak Calling
+
+Configure q-values and broad peak parameters in `config/config.yml`:
+
+```yaml
+peak_qval:
+  CTCF: 0.0001
+  H3K4me3: 0.001
+  H3K27ac: 0.001
+
+broad_marks:
+  - H3K27me3
+  - H3K9me3
+
+broad_params:
+  slocal: 10000
+  max-gap: 1000
+  broad-cutoff: 0.01
 ```
-"data/deseq2/{mark}/{mark}-rld-pca.png" - PCA of counts after reguarlized log transformation. 
-"data/deseq2/{mark}/{mark}-vsd-pca.png" - PCA of counts after variance stabilizing transformation.
-"data/deseq2/{mark}/{mark}-normcounts.csv" - normalized count for each sample in each consensus peak.
-"data/deseq2/{mark}/{mark}-lognormcounts.csv" - log2 normalized counts for each sample in each consensus peak.
-"data/deseq2/{mark}/{mark}-rld.png", - the sdVsMean plot using regularized log transformation.
-"data/deseq2/{mark}/{mark}-vsd.png" - the sdVsMean plot using variance stabilizing transformation.
-"data/deseq2/{mark}/{mark}-vsd-dist.png" - the sample distance matrix after variance stabilizing transformation.
-"data/deseq2/{mark}/{mark}-rld-dist.png" - the sample distance matrix using regularized log transformation.
-"data/deseq2/{mark}/{mark}-dds.rds" - the R object with the results of running the DEseq() function.
+
+### Aligner Selection
+
+Switch between aligners in the config:
+
+```yaml
+pipeline_steps:
+  alignment:
+    aligner: "bowtie2"  # or "bwa-mem2"
 ```
 
-For each contrast, the differentially expressed genes are written to a file ending in `-diffexp.tsv` as well as those with an adjusted p-value less than 0.05 with the extension `-sig05-diffexp.tsv`. A summary of the results using an alpha of 0.05 is also written to a file with the extension `-sig05-diffexp-summary.txt`. Additionally two MA plots are written to the file ending in `plotMA.png` that have highlighted differential peaks with an adjusted p-value less than 0.1.
+### Adapter Trimming
 
-See the following paper for further explanations of the above plots and data transforms:
-https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#exporting-results-to-csv-files 
+Enable/disable adapter trimming:
+
+```yaml
+TRIM_ADAPTERS: true  # or false
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Missing input files**: Ensure sample sheet paths are correct and files exist
+2. **Memory errors**: Adjust `mem_mb` in rule resources or use cluster execution
+3. **Wildcard errors**: Check that sample names are consistent across config and sample sheet
+4. **Conda environment issues**: Rebuild environments with `--use-conda`
+
+### Log Files
+
+Check rule-specific logs in `{output_base_dir}/logs/` for detailed error messages.
+
+## Citation
+
+If you use this pipeline, please cite:
+
+- CUT&Tag method: [Kaya-Okur et al., 2019](https://www.nature.com/articles/s41467-019-09982-5)
+- Snakemake: [Mölder et al., 2021](https://doi.org/10.12688/f1000research.29032.2)
+- MACS2: [Zhang et al., 2008](https://doi.org/10.1186/gb-2008-9-9-r137)
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Support
+
+For issues, questions, or contributions, please open an issue on the repository.

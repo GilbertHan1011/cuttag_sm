@@ -32,8 +32,6 @@ if config.get("aligner", "bowtie2") == "bowtie2":
             err=f"{DATA_DIR}/logs/bowtie2_{{sample}}.err"
         conda:
             "../envs/align.yml"
-        singularity:
-            os.path.join(config["SINGULARITY_IMAGE_FOLDER"], "align.sif")
         threads: 8
         resources:
             mem_mb=8*config.get("mem", 8000),
@@ -69,8 +67,6 @@ else:
             runtime = 800,
         conda:
             "../envs/bwa.yml"
-        singularity:
-            os.path.join(config["SINGULARITY_IMAGE_FOLDER"], "bwa.sif")
         threads: 8
         shell:
             (
@@ -89,8 +85,6 @@ rule markdup:
         bam = f"{DATA_DIR}/Important_processed/Bam/{{sample}}.sorted.markd.bam",
     conda:
         "../envs/sambamba.yml"
-    singularity:
-        os.path.join(config["SINGULARITY_IMAGE_FOLDER"], "sambamba.sif")
     threads: 4
     log:
         f"{DATA_DIR}/logs/sambamba_markdup_{{sample}}.log"

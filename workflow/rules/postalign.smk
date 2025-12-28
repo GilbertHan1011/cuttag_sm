@@ -9,8 +9,6 @@ rule tracks:
         f"{DATA_DIR}/Important_processed/Track/tracks/{{sample}}.bw"
     conda:
         "../envs/dtools.yml"
-    singularity:
-        os.path.join(config["SINGULARITY_IMAGE_FOLDER"], "dtools.sif")
     resources:
         mem_mb=32000,
         runtime = 200,
@@ -28,8 +26,6 @@ rule merge_bw:
     resources:
         mem_mb=32000,
         runtime = 300,
-    singularity:
-        os.path.join(config["SINGULARITY_IMAGE_FOLDER"], "mergebw.sif")
     shell:
         "bash workflow/src/mergebw.sh -c {config[CSIZES]} -o {output} {input}"
 
@@ -41,8 +37,6 @@ rule fraglength:
     conda:
         "../envs/align.yml"
     threads: 1
-    singularity:
-        os.path.join(config["SINGULARITY_IMAGE_FOLDER"], "align.sif")
     shell:
         "workflow/src/fraglen-dist.sh {input} {output}"
 

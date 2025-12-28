@@ -13,7 +13,7 @@ from snakemake.utils import validate, min_version
 ##### set minimum snakemake version #####
 min_version("8.20.1")
 
-include: "src/common.py"
+include: "rules/common.smk"
 
 
 def _get_nested(mapping, *keys, default=None):
@@ -59,9 +59,6 @@ def _hydrate_config(cfg):
     cfg["BROAD_PARAMS"] = _get_nested(steps, "broad_params", default={})
     cfg["TRIM_ADAPTERS"] = preprocessing.get("trim_adapters", False)
 
-    cfg["USE_SINGULARITY"] = exec_cfg.get("use_singularity", False)
-    cfg["SINGULARITY_IMAGE_FOLDER"] = exec_cfg.get("singularity_image_folder", "")
-
     cfg["GENOME"] = refs.get("genome_index", "")
     cfg["FASTA"] = refs.get("genome_fasta", "")
     cfg["GENES"] = refs.get("genes_bed", "")
@@ -73,68 +70,6 @@ def _hydrate_config(cfg):
 configfile: "config/config_test.yml"
 _hydrate_config(config)
 validate(config, schema="../schemas/config.schema.yml")
-
-
-def _resolve_config_paths(node, paths_dict):
-    """
-    Recursively replace placeholders such as {raw_data} using values defined in
-    the PEP `paths` block.
-    """
-    if not paths_dict:
-        return node
-    if isinstance(node, dict):
-        for key, value in node.items():
-            node[key] = _resolve_config_paths(value, paths_dict)
-        return node
-    if isinstance(node, list):
-        return [_resolve_config_paths(item, paths_dict) for item in node]
-    if isinstance(node, str) and "{" in node and "}" in node:
-        resolved = node
-        for placeholder, replacement in paths_dict.items():
-            if replacement is None:
-                continue
-            resolved = resolved.replace(f"{{{placeholder}}}", str(replacement))
-        return resolved
-    return node
-
-
-def _explode_list_columns(df):
-    """
-    Expand list-valued columns that can be produced by PEP modifiers.
-    """
-    list_cols = [
-        col
-        for col in df.columns
-        if df[col].apply(lambda x: isinstance(x, (list, tuple))).any()
-    ]
-    if not list_cols:
-        return df
-    expanded = df.copy()
-    for col in list_cols:
-        expanded = expanded.explode(col, ignore_index=True)
-    return expanded
-
-
-def _ensure_sample_columns(df):
-    """
-    Normalize column names expected by downstream logic.
-    """
-    normalized = df.copy()
-    if "sample" not in normalized.columns:
-        if "sample_name" in normalized.columns:
-            normalized["sample"] = normalized["sample_name"].astype(str)
-        elif normalized.index.name:
-            normalized["sample"] = normalized.index.astype(str)
-        else:
-            raise ValueError(
-                "PEP sample table is missing a 'sample' or 'sample_name' column."
-            )
-    normalized["sample"] = normalized["sample"].astype(str)
-    if "run" not in normalized.columns:
-        normalized["run"] = 1
-    normalized["run"] = pd.to_numeric(normalized["run"], errors="raise").astype(int)
-    return normalized
-
 
 # Load (optional) PEP configuration only for path placeholders
 pep_config_value = _get_nested(
@@ -226,9 +161,6 @@ SAMPLE_SHEET = os.path.abspath(sample_table_path)
 st = annot
 
 
-#deseq2_md = pd.read_table("config/deseq2_metadata.csv", sep = ",").set_index('sample', drop = False)
-#validate(deseq2_md, schema="../schemas/deseq2.schema.yml")
-
 # parse config files
 
 samps = get_samples()
@@ -251,9 +183,6 @@ include: "rules/preprocess.smk"
 include: "rules/qc.smk"
 include: "rules/reproducibility.smk"
 localrules: frip_plot, fraglength_plot
-
-#singularity: "library://gartician/miniconda-mamba/4.12.0:sha256.7302640e37d37af02dd48c812ddf9c540a7dfdbfc6420468923943651f795591"
-# singularity: "/home/groups/MaxsonLab/software/singularity-containers/4.12.0_sha256.7302640e37d37af02dd48c812ddf9c540a7dfdbfc6420468923943651f795591.sif"
 
 rule all:
     input:
@@ -279,7 +208,7 @@ rule all:
         # quality control plots
         f"{DATA_DIR}/Report/fraglen.html",
         f"{DATA_DIR}/Report/plotEnrichment/frip.html",
-        f"{DATA_DIR}/Report/peak_stat/peakcount.txt",
+        expand(f"{DATA_DIR}/Report/peak_stat/peakcount/{{sample}}_peakcount.txt", sample=sample_noigg),
         # Genomic coverage report
         f"{DATA_DIR}/Report/peak_stat/coverage_report.tsv",
         # Reproducibility outputs
@@ -295,27 +224,4 @@ rule all:
             f"{DATA_DIR}/Report/bedtools_jaccard/{{sample_rep}}_jaccard.txt",
             sample_rep=get_sample_reps()
         ),
-
-if config["USE_SINGULARITY"]:
-    rule homer:
-        input:
-            f"{DATA_DIR}/deseq2/{{mark}}/{{mark}}-dds.rds"
-        output:
-            f"{DATA_DIR}/homer/{{mark}}.done"
-        singularity:
-            os.path.join(config["SINGULARITY_IMAGE_FOLDER"], "homer.sif")
-        shell:
-            f"OUTPUT_BASE_DIR=\"{DATA_DIR}\" bash src/homer.sh -m {{wildcards.mark}} -s 0 -p 8 -g {{config[FASTA]}}"
-else:
-    rule homer:
-        input:
-            f"{DATA_DIR}/deseq2/{{mark}}/{{mark}}-dds.rds"
-        output:
-            f"{DATA_DIR}/homer/{{mark}}.done"
-        conda:
-            "envs/homer.yml"
-        shell:
-            f"OUTPUT_BASE_DIR=\"{DATA_DIR}\" bash src/homer.sh -m {{wildcards.mark}} -s 1 -p 8 -g {{config[FASTA]}}"
-# this rule submits HOMER runs to SLURM if -s = 1. A run is each unique contrast
-# if running pipeline via containers, then don't allow homer script to spawn sbatch jobs because slurm can't be accessed inside container
 

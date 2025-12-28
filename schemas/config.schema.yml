@@ -29,9 +29,6 @@ properties:
   ADAPTER_FASTA:
     type: string
     description: path to a FASTA file containing list of sequences to trim from raw reads
-  SINGULARITY_IMAGE_FOLDER:
-    type: string
-    description: path to folder containing Singularity container image files for pipeline
   BLACKLIST:
     type: string
     description: optional path to tab-delimited file of blacklisted genomic regions to filter out

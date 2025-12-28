@@ -8,8 +8,6 @@ rule plotFinger:
         f"{DATA_DIR}/Report/dtools/fingerprint_{{sample}}.tsv"
     conda:
         "../envs/dtools.yml"
-    singularity:
-        os.path.join(config["SINGULARITY_IMAGE_FOLDER"], "dtools.sif")
     log:
         f"{DATA_DIR}/logs/fingerprint_{{sample}}.log"
     shell:
@@ -34,8 +32,6 @@ rule preseq:
         defect_mode = defect_mode
     conda:
         "../envs/preseq.yml"
-    singularity:
-        os.path.join(config["SINGULARITY_IMAGE_FOLDER"], "preseq.sif")
     log:
         f"{DATA_DIR}/logs/preseq_{{sample}}.log"
     shell:
@@ -50,8 +46,6 @@ rule preseq_lcextrap:
         defect_mode = defect_mode
     conda:
         "../envs/preseq.yml"
-    singularity:
-        os.path.join(config["SINGULARITY_IMAGE_FOLDER"], "preseq.sif")
     log:
         f"{DATA_DIR}/logs/preseq_{{sample}}.log"
     shell:
@@ -61,15 +55,13 @@ rule multiqc:
     input:
         expand(f"{DATA_DIR}/Report/plotEnrichment/frip_{{sample}}.tsv", sample=sample_noigg),
         expand(f"{DATA_DIR}/Report/preseq/lcextrap_{{sample}}.txt", sample=samps),
-        f"{DATA_DIR}/Report/peak_stat/peakcount.txt",
+        expand(f"{DATA_DIR}/Report/peak_stat/peakcount/{{sample}}_peakcount.txt", sample=sample_noigg),
         f"{DATA_DIR}/Report/peak_stat/coverage_report.tsv"
     output:
         f"{DATA_DIR}/Report/multiqc/multiqc_report.html",
         f"{DATA_DIR}/Report/multiqc/multiqc_data/multiqc_data.json"
     conda:
         "../envs/multiqc.yml"
-    singularity:
-        os.path.join(config["SINGULARITY_IMAGE_FOLDER"], "multiqc.sif")
     log:
         f"{DATA_DIR}/logs/multiqc.log"
     shell:

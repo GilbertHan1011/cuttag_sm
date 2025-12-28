@@ -53,73 +53,36 @@ rule callpeaks_macs2_narrow:
     wrapper:
         "v2.9.1/bio/macs2/callpeak"
 
-
-if os.path.isfile(blacklist_file):
-    rule remove_blacklist:
-        input:
-            f"{DATA_DIR}/Important_processed/Peaks/callpeaks/{{sample}}_peaks.bed"
-        output:
-            f"{DATA_DIR}/Important_processed/Peaks/callpeaks/{{sample}}_peaks_noBlacklist.bed"
-        params:
-            blacklist = blacklist_file
-        conda:
-            "../envs/bedtools.yml"
-        singularity:
-            "docker://staphb/bedtools:2.30.0"
-        threads: 1
-        shell:
-            "bedtools intersect -v -a {input} -b {params.blacklist} > {output}"
-
-    # merge all peaks to get union peak with at least
-    # two reps per condition per peak
-    rule make_high_conf_peaks:
-        input:
-            get_peaks_by_mark_condition_blacklist
-        output:
-            f"{DATA_DIR}/Important_processed/Peaks/highConf/{{mark_condition}}.highConf.bed"
-        conda:
-            "../envs/bedtools.yml"
-        singularity:
-            "docker://staphb/bedtools:2.30.0"
-        shell:
-            "files=( {input} ); existing=(); "
-            "for f in ${{files[@]}}; do [ -s \"$f\" ] && existing+=(\"$f\"); done; "
-            "if [ ${{#existing[@]}} -eq 0 ]; then : > {output}; else "
-            "cat ${{existing[@]}} | sort -k1,1 -k2,2n | "
-            "bedtools merge | "
-            "bedtools intersect -a - -b ${{existing[@]}} -c | "
-            "awk -v OFS='\t' '$4>=2 {{print}}' > {output}; fi"
-else:
-    # merge all peaks to get union peak with at least
-    # two reps per condition per peak
-    rule make_high_conf_peaks:
-        input:
-            get_peaks_by_mark_condition
-        output:
-            f"{DATA_DIR}/Important_processed/Peaks/highConf/{{mark_condition}}.highConf.bed"
-        conda:
-            "../envs/bedtools.yml"
-        singularity:
-            "docker://staphb/bedtools:2.30.0"
-        shell:
-            "files=( {input} ); existing=(); "
-            "for f in ${{files[@]}}; do [ -s \"$f\" ] && existing+=(\"$f\"); done; "
-            "if [ ${{#existing[@]}} -eq 0 ]; then : > {output}; else "
-            "cat ${{existing[@]}} | sort -k1,1 -k2,2n | "
-            "bedtools merge | "
-            "bedtools intersect -a - -b ${{existing[@]}} -c | "
-            "awk -v OFS='\t' '$4>=2 {{print}}' > {output}; fi"
+rule process_peaks:
+    """
+    Process MACS2 peak files: remove blacklist if present, otherwise just convert to BED format.
+    Uses get_peak_file_for_sample to get the appropriate MACS2 output (broadPeak or narrowPeak).
+    """
+    input:
+        peak_file = lambda wc: get_peak_file_for_sample(wc.sample)
+    output:
+        bed_file = f"{DATA_DIR}/Important_processed/Peaks/callpeaks/{{sample}}_peaks.bed"
+    params:
+        blacklist = blacklist_file if os.path.isfile(blacklist_file) else None
+    conda:
+        "../envs/bedtools.yml"
+    threads: 1
+    shell:
+        """
+        if [ -n "{params.blacklist}" ] && [ -f "{params.blacklist}" ]; then
+            # Remove blacklist regions and convert to BED (first 3 columns)
+            bedtools intersect -v -a {input.peak_file} -b {params.blacklist} | cut -f 1-3 > {output.bed_file}
+        else
+            # Just convert to BED format (first 3 columns)
+            cut -f 1-3 {input.peak_file} > {output.bed_file}
+        fi
+        """
 
 
 # get consensus
 rule consensus:
     input:
-        expand(f"{DATA_DIR}/Important_processed/Peaks/callpeaks/{{sample}}_peaks_noBlacklist.bed", sample=sample_noigg)
-        if os.path.isfile(blacklist_file)
-        else expand(
-            f"{DATA_DIR}/Important_processed/Peaks/callpeaks/{{sample}}_peaks.bed",
-            sample=sample_noigg,
-        )
+        expand(f"{DATA_DIR}/Important_processed/Peaks/callpeaks/{{sample}}_peaks.bed", sample=sample_noigg)
     output:
         consensus_counts = f"{DATA_DIR}/Important_processed/Peaks/counts/{{mark}}_counts.tsv",
         consensus_bed = f"{DATA_DIR}/Important_processed/Peaks/counts/{{mark}}_consensus.bed"
@@ -127,26 +90,18 @@ rule consensus:
         blacklist_flag = "-b" if os.path.isfile(blacklist_file) else ""
     conda:
         "../envs/bedtools.yml"
-    singularity:
-        "docker://staphb/bedtools:2.30.0"
     shell:
         f"OUTPUT_BASE_DIR=\"{DATA_DIR}\" bash workflow/src/consensus_peaks.sh -m {{wildcards.mark}} -n {{config[N_INTERSECTS]}} -o {{output.consensus_counts}} {{params.blacklist_flag}}"
 
 rule frip:
     input:
-        peaks=lambda wc: (
-            f"{DATA_DIR}/Important_processed/Peaks/callpeaks/macs2_broad_{wc.sample}_peaks.broadPeak"
-            if is_broad_mark(wc)
-            else f"{DATA_DIR}/Important_processed/Peaks/callpeaks/macs2_narrow_{wc.sample}_peaks.narrowPeak"
-        ),
+        peaks=f"{DATA_DIR}/Important_processed/Peaks/callpeaks/{{sample}}_peaks.bed",
         bam=rules.markdup.output.bam,
         bai=rules.index_bam.output.bai
     output:
         f"{DATA_DIR}/Report/plotEnrichment/frip_{{sample}}.png", f"{DATA_DIR}/Report/plotEnrichment/frip_{{sample}}.tsv"
     conda:
         "../envs/dtools.yml"
-    singularity:
-        os.path.join(config["SINGULARITY_IMAGE_FOLDER"], "dtools.sif")
     resources:
         mem_mb=16000,
         runtime = 120,
@@ -157,18 +112,12 @@ rule frip:
 
 rule genomic_coverage:
     input:
-        peaks=lambda wc: (
-            f"{DATA_DIR}/Important_processed/Peaks/callpeaks/macs2_broad_{wc.sample}_peaks.broadPeak"
-            if is_broad_mark(wc)
-            else f"{DATA_DIR}/Important_processed/Peaks/callpeaks/macs2_narrow_{wc.sample}_peaks.narrowPeak"
-        ),
+        peaks=lambda wc: get_peak_file_for_sample(wc.sample),
         chrom_sizes=config["CSIZES"]
     output:
         f"{DATA_DIR}/Report/peak_stat/coverage/{{sample}}_coverage.tsv"
     conda:
         "../envs/bedtools.yml"
-    singularity:
-        "docker://staphb/bedtools:2.30.0"
     resources:
         mem_mb=32000,
         runtime = 120,
@@ -212,27 +161,24 @@ rule coverage_report:
         done
         """
 
-
-
-rule count_peaks:
+rule count_peaks_per_sample:
+    """
+    Count peaks for each sample separately.
+    """
     input:
-        get_macs2_peak_files(DATA_DIR, config["IGG"])
+        peak_file = lambda wc: get_peak_file_for_sample(wc.sample)
     output:
-        f"{DATA_DIR}/Report/peak_stat/peakcount.txt"
+        count_file = f"{DATA_DIR}/Report/peak_stat/peakcount/{{sample}}_peakcount.txt"
     log:
-        f"{DATA_DIR}/logs/count_peaks.log"
+        f"{DATA_DIR}/logs/count_peaks_{{sample}}.log"
     shell:
         """
-        echo "Input files: {input}" > {log}
-        echo "Number of input files: $(echo '{input}' | wc -w)" >> {log}
-        
-        if [ -z "{input}" ]; then
-            echo "No input files, creating empty output" >> {log}
-            : > {output}
+        if [ -f {input.peak_file} ] && [ -s {input.peak_file} ]; then
+            count=$(wc -l < {input.peak_file})
+            echo "{wildcards.sample} $count" > {output.count_file}
+            echo "Sample {wildcards.sample}: $count peaks" > {log}
         else
-            echo "Processing input files" >> {log}
-            wc -l {input} \
-            | awk '$2 != "total" {{file=$2; gsub(\".*/macs2_(broad|narrow)_\",\"\",file); gsub(\"_peaks\\\\.(broadPeak|narrowPeak)\",\"\",file); print file, $1}}' \
-            > {output}
+            echo "{wildcards.sample} 0" > {output.count_file}
+            echo "Sample {wildcards.sample}: 0 peaks (file not found or empty)" > {log}
         fi
         """

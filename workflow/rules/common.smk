@@ -228,41 +228,6 @@ def defect_mode(wildcards, attempt):
     elif attempt > 1:
         return "-D"
 
-def get_macs2_peak_files(data_dir, igg_name="IgG"):
-    """
-    Get all MACS2 peak files (.broadPeak and .narrowPeak) for counting.
-    Uses BROAD_MARKS config to determine which samples use broad peaks.
-    Excludes IgG control samples.
-    """
-    peak_files = []
-    peak_dir = os.path.join(data_dir, "Important_processed", "Peaks", "callpeaks")
-    # Get broad marks from config, convert to lowercase for comparison
-    broad_marks = set(m.lower() for m in config.get('BROAD_MARKS', []))
-    
-    for sample in st['sample'].unique():
-        # Skip IgG samples
-        if igg_name.lower() in str(sample).lower():
-            continue
-        
-        row = st[st['sample'] == sample]
-        if row.empty:
-            continue
-        mark = str(row['mark'].iloc[0])
-        mark_lower = mark.lower()
-        
-        # Skip if mark is IgG
-        if igg_name.lower() in mark_lower:
-            continue
-            
-        # Check if it's a broad peak marker based on config
-        if mark_lower in broad_marks:
-            # Broad peak file
-            peak_files.append(f"{peak_dir}/macs2_broad_{sample}_peaks.broadPeak")
-        else:
-            # Narrow peak file
-            peak_files.append(f"{peak_dir}/macs2_narrow_{sample}_peaks.narrowPeak")
-    return peak_files
-
 def get_qvalue_for_mark(wildcards):
     """
     Returns the q-value threshold for a given sample based on its marker.
@@ -286,3 +251,94 @@ def get_qvalue_for_mark(wildcards):
     
     # Default q-value
     return 0.01
+
+def _resolve_config_paths(node, paths_dict):
+    """
+    Recursively replace placeholders such as {raw_data} using values defined in
+    the PEP `paths` block.
+    """
+    if not paths_dict:
+        return node
+    if isinstance(node, dict):
+        for key, value in node.items():
+            node[key] = _resolve_config_paths(value, paths_dict)
+        return node
+    if isinstance(node, list):
+        return [_resolve_config_paths(item, paths_dict) for item in node]
+    if isinstance(node, str) and "{" in node and "}" in node:
+        resolved = node
+        for placeholder, replacement in paths_dict.items():
+            if replacement is None:
+                continue
+            resolved = resolved.replace(f"{{{placeholder}}}", str(replacement))
+        return resolved
+    return node
+
+
+def _explode_list_columns(df):
+    """
+    Expand list-valued columns that can be produced by PEP modifiers.
+    """
+    list_cols = [
+        col
+        for col in df.columns
+        if df[col].apply(lambda x: isinstance(x, (list, tuple))).any()
+    ]
+    if not list_cols:
+        return df
+    expanded = df.copy()
+    for col in list_cols:
+        expanded = expanded.explode(col, ignore_index=True)
+    return expanded
+
+
+def _ensure_sample_columns(df):
+    """
+    Normalize column names expected by downstream logic.
+    """
+    normalized = df.copy()
+    if "sample" not in normalized.columns:
+        if "sample_name" in normalized.columns:
+            normalized["sample"] = normalized["sample_name"].astype(str)
+        elif normalized.index.name:
+            normalized["sample"] = normalized.index.astype(str)
+        else:
+            raise ValueError(
+                "PEP sample table is missing a 'sample' or 'sample_name' column."
+            )
+    normalized["sample"] = normalized["sample"].astype(str)
+    if "run" not in normalized.columns:
+        normalized["run"] = 1
+    normalized["run"] = pd.to_numeric(normalized["run"], errors="raise").astype(int)
+    return normalized
+
+
+
+def get_peak_file_for_sample(sample):
+    """
+    Get the appropriate MACS2 peak file (broadPeak or narrowPeak) for a given sample.
+    """
+    row = st[st['sample'] == sample]
+    if row.empty:
+        return None
+    mark = str(row['mark'].iloc[0])
+    mark_lower = mark.lower()
+    # Get broad marks from config, convert to lowercase for comparison
+    broad_marks = set(m.lower() for m in config.get('BROAD_MARKS', []))
+    
+    if mark_lower in broad_marks:
+        return os.path.join(
+            DATA_DIR,
+            "Important_processed",
+            "Peaks",
+            "callpeaks",
+            f"macs2_broad_{sample}_peaks.broadPeak"
+        )
+    else:
+        return os.path.join(
+            DATA_DIR,
+            "Important_processed",
+            "Peaks",
+            "callpeaks",
+            f"macs2_narrow_{sample}_peaks.narrowPeak"
+        )

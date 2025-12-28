@@ -95,35 +95,6 @@ rule bamReproducibility:
             --outFileCorMatrix {output.matrix} 2>> {log}
         """
 
-def get_peak_file_for_sample(sample):
-    """
-    Get the appropriate MACS2 peak file (broadPeak or narrowPeak) for a given sample.
-    """
-    row = st[st['sample'] == sample]
-    if row.empty:
-        return None
-    mark = str(row['mark'].iloc[0])
-    mark_lower = mark.lower()
-    # Get broad marks from config, convert to lowercase for comparison
-    broad_marks = set(m.lower() for m in config.get('BROAD_MARKS', []))
-    
-    if mark_lower in broad_marks:
-        return os.path.join(
-            DATA_DIR,
-            "Important_processed",
-            "Peaks",
-            "callpeaks",
-            f"macs2_broad_{sample}_peaks.broadPeak"
-        )
-    else:
-        return os.path.join(
-            DATA_DIR,
-            "Important_processed",
-            "Peaks",
-            "callpeaks",
-            f"macs2_narrow_{sample}_peaks.narrowPeak"
-        )
-
 rule bedtools_jaccard:
     input:
         peaks = lambda w: [
