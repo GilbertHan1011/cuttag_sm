@@ -1,7 +1,4 @@
-
-
 DATA_DIR = config["output_base_dir"].rstrip("/")
-
 
 rule fastp:
     input:

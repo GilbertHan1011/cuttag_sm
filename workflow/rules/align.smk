@@ -13,7 +13,7 @@ if config.get("aligner", "bowtie2") == "bowtie2":
         output:
             bam = temp(f"{DATA_DIR}/middle_file/aligned/{{sample}}.sort.bam")
         log:
-            err=f"{DATA_DIR}/logs/bowtie2_{{sample}}.err"
+            err=f"{DATA_DIR}/Report/align/bowtie2_{{sample}}.err"
         conda:
             "../envs/align.yml"
         threads: 8
@@ -71,7 +71,7 @@ rule markdup:
         "../envs/sambamba.yml"
     threads: 4
     log:
-        f"{DATA_DIR}/logs/sambamba_markdup_{{sample}}.log"
+        f"{DATA_DIR}/Report/sambamba/sambamba_markdup_{{sample}}.log"
     shell:
         (
             f"sambamba markdup --tmpdir={DATA_DIR}/Important_processed/Bam -t {{threads}} {{input.bam}} {{output.bam}} > {{log}} 2>&1"
