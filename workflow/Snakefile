@@ -67,11 +67,29 @@ def _hydrate_config(cfg):
     cfg["BLACKLIST"] = refs.get("blacklist", "") or ""
 
 
+# ============================================================================
+# CONFIGURATION LOADING
+# ============================================================================
+# Load PRIMARY config file (config.yml) - controls all pipeline behavior
+# ============================================================================
 configfile: "config/config_test.yml"
 _hydrate_config(config)
 validate(config, schema="../schemas/config.schema.yml")
 
-# Load (optional) PEP configuration only for path placeholders
+# ============================================================================
+# LOAD OPTIONAL PEP CONFIGURATION (SECONDARY)
+# ============================================================================
+# PEP config is optional and only provides:
+#   1. Path placeholders: {process_dir}, {database_dir}, {raw_data}, etc.
+#   2. Project name: Overrides project_info.name if present
+#   3. Raw data location: Used to resolve {raw_data} placeholders
+#
+# PRECEDENCE RULES:
+#   - Pipeline settings: Always from config.yml (PRIMARY)
+#   - Sample table: Always from config.yml (project_info.samples.table)
+#   - Project name: PEP config overrides config.yml if present
+#   - Paths: PEP config merged into config for placeholder resolution
+# ============================================================================
 pep_config_value = _get_nested(
     config,
     "project_info",
@@ -91,18 +109,27 @@ except Exception:
     pep_project = None
 
 if pep_project is not None:
-    # merge PEP paths
+    # Merge PEP paths into config for placeholder resolution
+    # These paths (process_dir, database_dir, etc.) are used in config.yml
     if "paths" in pep_project.config:
         config.setdefault("paths", {}).update(pep_project.config["paths"])
-    # also expose commonly used project-level paths for placeholder resolution
+    
+    # Extract project-level metadata from PEP config
     proj_cfg = pep_project.config.get("project", {})
+    
+    # Add raw_data to paths for placeholder resolution
     raw_data = proj_cfg.get("raw_data")
     if raw_data:
         config.setdefault("paths", {})["raw_data"] = raw_data
+    
+    # PEP project name overrides config.yml project name if present
     proj_name = proj_cfg.get("name")
     if proj_name:
         config["paths"]["project_name"] = proj_name
+        # Also update the hydrated config for consistency
+        config["project_info"]["name"] = proj_name
 
+# Resolve all path placeholders (e.g., {process_dir}, {database_dir}) in config
 _resolve_config_paths(config, config.get("paths", {}))
 
 # ---------------------------------------------------------------------------

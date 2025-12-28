@@ -1,31 +1,15 @@
 
 DATA_DIR = config["output_base_dir"].rstrip("/")
 
-# -------------------------------------------------------------------------
-# Helpers to gather all runs for a sample (trimmed or raw)
-# -------------------------------------------------------------------------
-def _runs_for_sample(sample):
-    return st[st["sample"] == sample]["run"].astype(str).tolist()
 
-def _all_trimmed_fastqs(sample):
-    runs = _runs_for_sample(sample)
-    r1 = [f"{DATA_DIR}/middle_file/Trimmed_fastq/fastp/{sample}.{r}_R1.fastq.gz" for r in runs]
-    r2 = [f"{DATA_DIR}/middle_file/Trimmed_fastq/fastp/{sample}.{r}_R2.fastq.gz" for r in runs]
-    return r1, r2
-
-def _all_raw_fastqs(sample):
-    rows = st[st["sample"] == sample]
-    r1 = rows["R1"].astype(str).tolist()
-    r2 = rows["R2"].astype(str).tolist()
-    return r1, r2
 # -------------------------------------------------------------------------
 # Conditional aligner selection (per sample, combining all runs)
 # -------------------------------------------------------------------------
 if config.get("aligner", "bowtie2") == "bowtie2":
     rule align:
         input:
-            r1 = lambda wc: (_all_trimmed_fastqs(wc.sample)[0] if config["TRIM_ADAPTERS"] else _all_raw_fastqs(wc.sample)[0]),
-            r2 = lambda wc: (_all_trimmed_fastqs(wc.sample)[1] if config["TRIM_ADAPTERS"] else _all_raw_fastqs(wc.sample)[1])
+            r1 = lambda wc: _all_trimmed_fastqs(wc.sample)[0],
+            r2 = lambda wc: _all_trimmed_fastqs(wc.sample)[1]
         output:
             bam = temp(f"{DATA_DIR}/middle_file/aligned/{{sample}}.sort.bam")
         log:
@@ -51,8 +35,8 @@ if config.get("aligner", "bowtie2") == "bowtie2":
 else:
     rule align:
         input:
-            r1 = lambda wc: (_all_trimmed_fastqs(wc.sample)[0] if config["TRIM_ADAPTERS"] else _all_raw_fastqs(wc.sample)[0]),
-            r2 = lambda wc: (_all_trimmed_fastqs(wc.sample)[1] if config["TRIM_ADAPTERS"] else _all_raw_fastqs(wc.sample)[1])
+            r1 = lambda wc: _all_trimmed_fastqs(wc.sample)[0],
+            r2 = lambda wc: _all_trimmed_fastqs(wc.sample)[1]
         output:
             bam = temp(f"{DATA_DIR}/middle_file/aligned/{{sample}}.sort.bam")
         log:

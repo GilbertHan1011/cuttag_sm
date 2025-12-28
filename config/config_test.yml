@@ -1,9 +1,22 @@
+# ============================================================================
+# PRIMARY CONFIGURATION FILE
+# ============================================================================
+# This is the main configuration file that controls pipeline behavior.
+# The PEP config (project_config.yaml) is optional and only provides:
+#   - Path placeholders (process_dir, database_dir, etc.)
+#   - Project name (overrides project_info.name if present)
+#   - Raw data location
+# ============================================================================
+
 project_info:
+  # Project name (can be overridden by PEP config if present)
   name: "20251111_cuttag_test"
   description: "CUT&Tag macrophage"
   genome: "hg38"
   samples:
+    # Sample sheet CSV/TSV file (REQUIRED - this takes precedence over PEP config)
     table: "../config/samplesheet_test.csv"
+    # Optional PEP config file path (for path placeholders and project metadata)
     pep_config: "../config/pep/pep_test.yaml"
     pep_attributes:
       raw_data_attribute: "raw_data|data/raw"
