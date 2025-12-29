@@ -157,18 +157,18 @@ def get_igg(wildcards):
     """
     Return IgG control BAM path as MACS2 -c parameter string.
     Returns empty string if USEIGG is False or sample is IgG itself.
-    """
+    """ 
     if not config.get('USEIGG', False):
         return ""
     
-    row = st[st["sample"] == wildcards.sample]
+        row = st[st["sample"] == wildcards.sample]
     if row.empty:
-        return ""
+            return ""
     
     igg = str(row["igg"].iloc[0])
     if not igg or config["IGG"] in wildcards.sample:
         return ""
-    
+
     data_dir = get_data_dir()
     iggbam = f"{data_dir}/Important_processed/Bam/{igg}.sorted.markd.bam"
     return f'-c {iggbam}'
@@ -330,16 +330,16 @@ def get_macs2_outputs(data_dir, igg_name="IgG"):
         if mark_lower in broad_marks:
             # Broad peak outputs
             outputs.extend([
-                f"{peak_dir}/macs2_broad_{sample}_peaks.xls",
-                f"{peak_dir}/macs2_broad_{sample}_peaks.broadPeak",
-                f"{peak_dir}/macs2_broad_{sample}_peaks.gappedPeak",
+                    f"{peak_dir}/macs2_broad_{sample}_peaks.xls",
+                    f"{peak_dir}/macs2_broad_{sample}_peaks.broadPeak",
+                    f"{peak_dir}/macs2_broad_{sample}_peaks.gappedPeak",
             ])
         else:
             # Narrow peak outputs
             outputs.extend([
-                f"{peak_dir}/macs2_narrow_{sample}_peaks.xls",
-                f"{peak_dir}/macs2_narrow_{sample}_peaks.narrowPeak",
-                f"{peak_dir}/macs2_narrow_{sample}_summits.bed",
+                    f"{peak_dir}/macs2_narrow_{sample}_peaks.xls",
+                    f"{peak_dir}/macs2_narrow_{sample}_peaks.narrowPeak",
+                    f"{peak_dir}/macs2_narrow_{sample}_summits.bed",
             ])
     return outputs
 

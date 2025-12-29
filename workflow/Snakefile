@@ -207,7 +207,7 @@ include: "rules/align.smk"
 include: "rules/peaks.smk"
 include: "rules/postalign.smk"
 include: "rules/preprocess.smk"
-include: "rules/qc.smk"
+include: "rules/report.smk"
 include: "rules/reproducibility.smk"
 localrules: frip_plot, fraglength_plot
 
@@ -249,6 +249,15 @@ rule all:
         ),
         expand(
             f"{DATA_DIR}/Report/bedtools_jaccard/{{sample_rep}}_jaccard.txt",
+            sample_rep=get_sample_reps()
+        ),
+        # BAM correlation MultiQC outputs (separate files per sample_rep)
+        expand(
+            os.path.join(DATA_DIR, "Report", "bamReproducibility", "{sample_rep}_bam_correlation_mqc.yaml"),
+            sample_rep=get_sample_reps()
+        ),
+        expand(
+            os.path.join(DATA_DIR, "Report", "bamReproducibility", "{sample_rep}_bam_correlation_stats_mqc.tsv"),
             sample_rep=get_sample_reps()
         ),
 

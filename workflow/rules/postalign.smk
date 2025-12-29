@@ -40,6 +40,7 @@ rule fraglength:
     shell:
         "workflow/src/fraglen-dist.sh {input} {output}"
 
+# This should plot in multiqc
 rule fraglength_plot:
     input:
         expand(f"{DATA_DIR}/Important_processed/Bam/{{sample}}.sorted.markd.fraglen.tsv", sample = samps)

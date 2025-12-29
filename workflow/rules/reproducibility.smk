@@ -80,10 +80,10 @@ rule bamReproducibility:
 
         echo "Starting multiBamSummary..." >&2
         multiBamSummary bins \
-          --bamfiles {input.bams} \
-          --binSize {params.bin_size} \
-          --numberOfProcessors {threads} \
-          --outFileName {output.npz} 2> {log}
+            --bamfiles {input.bams} \
+            --binSize {params.bin_size} \
+            --numberOfProcessors {threads} \
+            --outFileName {output.npz} 2> {log}
 
         echo "Starting plotCorrelation..." >&2
         plotCorrelation \
@@ -96,9 +96,20 @@ rule bamReproducibility:
         """
 
 rule bedtools_jaccard:
+    """
+    Calculate pairwise Jaccard similarity for all pairs of samples in a replicate group.
+    Uses processed peaks (with blacklist removed if applicable) from process_peaks rule.
+    Outputs a table with all pairwise comparisons.
+    """
     input:
         peaks = lambda w: [
-            get_peak_file_for_sample(s)
+            os.path.join(
+                DATA_DIR,
+                "Important_processed",
+                "Peaks",
+                "callpeaks",
+                f"{s}_peaks.bed"
+            )
             for s in get_reproducibility_sample(w.sample_rep)
         ]
     output:
@@ -119,5 +130,52 @@ rule bedtools_jaccard:
         "../envs/bedtools.yml"
     shell:
         """
-        bedtools jaccard -a {input.peaks[0]} -b {input.peaks[1]} > {output.jaccard}
+        set -euo pipefail
+        exec >{log} 2>&1
+        
+        # Extract sample names from processed peak file paths
+        # Peak files are in format: SAMPLE_peaks.bed
+        PEAK_FILES=({input.peaks})
+        NUM_SAMPLES=${{#PEAK_FILES[@]}}
+        
+        # Extract sample names from file paths
+        declare -a SAMPLES
+        for peak_file in "${{PEAK_FILES[@]}}"; do
+            # Extract sample name: remove path and _peaks.bed suffix
+            SAMPLE=$(basename "$peak_file" | sed 's/_peaks\\.bed$//')
+            SAMPLES+=("$SAMPLE")
+        done
+        
+        # Write header
+        echo -e "Sample1\tSample2\tJaccard_Similarity\tIntersection\tUnion_Intersection" > {output.jaccard}
+        
+        # Calculate pairwise Jaccard for all pairs
+        for ((i=0; i<NUM_SAMPLES; i++)); do
+            for ((j=i+1; j<NUM_SAMPLES; j++)); do
+                SAMPLE1="${{SAMPLES[i]}}"
+                SAMPLE2="${{SAMPLES[j]}}"
+                PEAK1="${{PEAK_FILES[i]}}"
+                PEAK2="${{PEAK_FILES[j]}}"
+                
+                echo "Comparing $SAMPLE1 vs $SAMPLE2..." >&2
+                
+                # Run bedtools jaccard and extract values
+                # bedtools jaccard output format: 
+                #   intersection    union-intersection    jaccard    n_intersections
+                JACCARD_OUT=$(bedtools jaccard -a "$PEAK1" -b "$PEAK2" 2>&1 | tail -n 1)
+                
+                if [ -n "$JACCARD_OUT" ] && ! echo "$JACCARD_OUT" | grep -q "ERROR"; then
+                    INTERSECTION=$(echo "$JACCARD_OUT" | awk '{{print $1}}')
+                    UNION=$(echo "$JACCARD_OUT" | awk '{{print $2}}')
+                    JACCARD=$(echo "$JACCARD_OUT" | awk '{{print $3}}')
+                    
+                    echo -e "$SAMPLE1\t$SAMPLE2\t$JACCARD\t$INTERSECTION\t$UNION" >> {output.jaccard}
+                else
+                    echo "Warning: Failed to calculate Jaccard for $SAMPLE1 vs $SAMPLE2" >&2
+                    echo -e "$SAMPLE1\t$SAMPLE2\tNA\tNA\tNA" >> {output.jaccard}
+                fi
+            done
+        done
+        
+        echo "Pairwise Jaccard calculation complete. Results written to {output.jaccard}" >&2
         """

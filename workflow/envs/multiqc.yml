@@ -10,12 +10,4 @@ dependencies:
   - pandas
   - pytables
   - pip:
-      - 'git+https://github.com/regulatory-genomics/cuttag_sm/#egg=cuttag_report&subdirectory=workflow/src/multiqc_cuttag' # works
-#     - -e /storage/zhangkaiLab/hanlitian/macrophage/script/ATAC-sm/workflow/scripts/multiqc_atacseq # works only local
-# Force reinstall 2025-11-30 / 2
-# Note: The cuttag_report plugin should be installed separately using:
-# pip install -e workflow/src/multiqc_cuttag --force-reinstall --no-deps
-# This allows for local development and testing
-# Force reinstall 2025-12-08 / 3
-# Force reinstall 2025-12-08 / 4
-# Force reinstall 2025-12-16 / 6
+      - 'git+https://github.com/GilbertHan1011/multiomicQc' # works

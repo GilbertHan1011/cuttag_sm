@@ -101,25 +101,7 @@ rule genomic_coverage:
         echo -e "Sample\tCoverage_Percent\tCovered_Bases\tTotal_Genome_Size" > {output}
         echo -e "{wildcards.sample}\t$COVERAGE_PERCENT\t$COVERED_BASES\t$TOTAL_GENOME_SIZE" >> {output}
         """
-
-rule coverage_report:
-    input:
-        expand(f"{DATA_DIR}/Report/peak_stat/coverage/{{sample}}_coverage.tsv", sample=sample_noigg)
-    output:
-        f"{DATA_DIR}/Report/peak_stat/coverage_report.tsv"
-    log:
-        f"{DATA_DIR}/logs/coverage_report.log"
-    shell:
-        """
-        set -euo pipefail
-        exec >{log} 2>&1
-        # Combine all individual coverage files into one report
-        echo -e "Sample\tCoverage_Percent\tCovered_Bases\tTotal_Genome_Size" > {output}
-        for file in {input}; do
-            tail -n +2 "$file" >> {output}
-        done
-        """
-
+        
 rule count_peaks_per_sample:
     """
     Count peaks for each sample separately.
@@ -143,12 +125,42 @@ rule count_peaks_per_sample:
         """
 
 
+rule bam_correlation_to_multiqc:
+    """
+    Convert BAM correlation matrices to MultiQC custom content format.
+    Processes one correlation matrix per sample_rep, creating separate MultiQC files.
+    """
+    input:
+        matrix_file = os.path.join(DATA_DIR, "Report", "bamReproducibility", "{sample_rep}_global_rep_cor.txt")
+    output:
+        multiqc_yaml = os.path.join(DATA_DIR, "Report", "bamReproducibility", "{sample_rep}_bam_correlation_mqc.yaml"),
+        stats_tsv = os.path.join(DATA_DIR, "Report", "bamReproducibility", "{sample_rep}_bam_correlation_stats_mqc.tsv"),
+    conda:
+        "../envs/reproducibility.yml"
+    log:
+        f"{DATA_DIR}/logs/bam_correlation_to_multiqc_{{sample_rep}}.log"
+    shell:
+        """
+        set -euo pipefail
+        exec >{log} 2>&1
+        
+        mkdir -p $(dirname {output.multiqc_yaml})
+        python workflow/src/bam_correlation_to_multiqc.py \
+            {input.matrix_file} \
+            --output-yaml {output.multiqc_yaml} \
+            --output-stats {output.stats_tsv} \
+            2>> {log}
+        """
+
 rule multiqc:
     input:
         expand(f"{DATA_DIR}/Report/plotEnrichment/frip_{{sample}}.tsv", sample=sample_noigg),
         expand(f"{DATA_DIR}/Report/preseq/lcextrap_{{sample}}.txt", sample=samps),
         expand(f"{DATA_DIR}/Report/peak_stat/peakcount/{{sample}}_peakcount.txt", sample=sample_noigg),
-        f"{DATA_DIR}/Report/peak_stat/coverage_report.tsv"
+        expand(f"{DATA_DIR}/Report/peak_stat/coverage/{{sample}}_coverage.tsv", sample=sample_noigg),
+        expand(f"{DATA_DIR}/Report/bamReproducibility/{{sample_rep}}_bam_correlation_mqc.yaml", sample_rep=get_sample_reps()),
+        expand(f"{DATA_DIR}/Report/bamReproducibility/{{sample_rep}}_bam_correlation_stats_mqc.tsv", sample_rep=get_sample_reps()),
+        expand(f"{DATA_DIR}/Report/bedtools_jaccard/{{sample_rep}}_jaccard.txt", sample_rep=get_sample_reps()),
     output:
         f"{DATA_DIR}/Report/multiqc/multiqc_report.html",
         f"{DATA_DIR}/Report/multiqc/multiqc_data/multiqc_data.json"
@@ -160,12 +172,10 @@ rule multiqc:
         """
         export LC_ALL=C.UTF-8; export LANG=C.UTF-8;
         
-        multiqc {DATA_DIR}/Report/ {DATA_DIR}/logs/ \
+        multiqc {DATA_DIR}/Report/ \
             --ignore {DATA_DIR}/Report/multiqc \
             -o {DATA_DIR}/Report/multiqc \
             -f \
-            -c workflow/src/multiqc_conf.yml \
-            --cl-config "annotation: {SAMPLE_SHEET}" \
             >> {log} 2>&1
         """
 
