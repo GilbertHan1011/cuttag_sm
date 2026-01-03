@@ -18,7 +18,7 @@ if config.get("aligner", "bowtie2") == "bowtie2":
             "../envs/align.yml"
         threads: 8
         resources:
-            mem_mb=8*config.get("mem", 8000),
+            mem_mb=align_mem_mb,
             runtime = 1000,
         params:
             bowtie2_input = lambda w, input: f"-1 {','.join(input.r1)} -2 {','.join(input.r2)}"
@@ -47,7 +47,7 @@ else:
             bwa_args = config.get("bwa_args", ""),
             bwa_input = lambda w, input: " ".join(input.r1 + input.r2)
         resources:
-            mem_mb=8*config.get("mem", 8000),
+            mem_mb=align_mem_mb,
             runtime = 800,
         conda:
             "../envs/bwa.yml"

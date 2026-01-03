@@ -7,8 +7,7 @@ from collections import defaultdict
 import pandas as pd
 from peppy import Project
 from snakemake.utils import validate, min_version
-#import plotly as plt
-#import plotly.graph_objects as go
+
 
 ##### set minimum snakemake version #####
 min_version("8.20.1")
@@ -209,55 +208,62 @@ include: "rules/postalign.smk"
 include: "rules/preprocess.smk"
 include: "rules/report.smk"
 include: "rules/reproducibility.smk"
+include: "rules/idr_reproducibility.smk"
 localrules: frip_plot, fraglength_plot
 
 rule all:
     input:
-        #expand(f"{DATA_DIR}/counts/{{mark}}_counts.tsv", mark=marks_noigg),
-        #expand(f"{DATA_DIR}/counts/{{mark}}_consensus.bed", mark=marks_noigg),
-        expand([f"{DATA_DIR}/Important_processed/Bam/{{sample}}.sorted.markd.bam",
+        # ====================================================================
+        # Alignment outputs
+        # ====================================================================
+        expand(
+            [
+                f"{DATA_DIR}/Important_processed/Bam/{{sample}}.sorted.markd.bam",
                 f"{DATA_DIR}/Important_processed/Bam/{{sample}}.sorted.markd.fraglen.tsv",
                 f"{DATA_DIR}/Important_processed/Track/tracks/{{sample}}.bw",
                 f"{DATA_DIR}/Report/preseq/lcextrap_{{sample}}.txt",
-                ], sample=samps),
-        # Peak calling outputs (gopeaks)
-        #expand(f"{DATA_DIR}/callpeaks/{{sample}}_peaks.bed", sample=sample_noigg),
-        # MACS2 outputs (broad for H3K27me3, narrow for others)
+            ],
+            sample=samps
+        ),
+        
+        # ====================================================================
+        # Peak calling outputs
+        # ====================================================================
         get_macs2_outputs(DATA_DIR, config["IGG"]),
-        # FRiP & fingerprint
+        
+        # ====================================================================
+        # Quality control outputs
+        # ====================================================================
         expand(f"{DATA_DIR}/Report/dtools/fingerprint_{{sample}}.tsv", sample=sample_noigg),
         expand(f"{DATA_DIR}/Report/plotEnrichment/frip_{{sample}}.tsv", sample=sample_noigg),
-
-        #expand(f"{DATA_DIR}/callpeaks/{{sample}}_peaks_noBlacklist.bed", sample=samps) if os.path.isfile(blacklist_file) else [],
+        expand(f"{DATA_DIR}/Report/peak_stat/peakcount/{{sample}}_peakcount.txt", sample=sample_noigg),
+        
+        # ====================================================================
+        # Report outputs
+        # ====================================================================
         f"{DATA_DIR}/Report/multiqc/multiqc_report.html",
         f"{DATA_DIR}/Report/multiqc/multiqc_data/multiqc_data.json",
-
-        # quality control plots
         f"{DATA_DIR}/Report/fraglen.html",
         f"{DATA_DIR}/Report/plotEnrichment/frip.html",
-        expand(f"{DATA_DIR}/Report/peak_stat/peakcount/{{sample}}_peakcount.txt", sample=sample_noigg),
-        # Genomic coverage report
-        f"{DATA_DIR}/Report/peak_stat/coverage_report.tsv",
-        # Reproducibility outputs
+
+        
+        # ====================================================================
+        # IDR-based Reproducibility outputs (optional - only for replicate groups)
+        # ====================================================================
+        # Note: These are conditionally included based on replicate groups
+        # TagAlign files (for samples with replicates)
         expand(
-            f"{DATA_DIR}/Report/bamReproducibility/{{sample_rep}}_global_rep_cor.txt",
-            sample_rep=get_sample_reps()
-        ),
+            f"{DATA_DIR}/middle_files/bed/{{sample}}.tagAlign.gz",
+            sample=[s for rep_group in get_sample_reps() for s in get_reproducibility_sample(rep_group)]
+        ) if get_sample_reps() else [],
+        
+        # Optimal peaks, QC, and correlation results (for replicate groups)
         expand(
-            f"{DATA_DIR}/Report/bamReproducibility/{{sample_rep}}_global_rep_heatmap.pdf",
-            sample_rep=get_sample_reps()
-        ),
-        expand(
-            f"{DATA_DIR}/Report/bedtools_jaccard/{{sample_rep}}_jaccard.txt",
-            sample_rep=get_sample_reps()
-        ),
-        # BAM correlation MultiQC outputs (separate files per sample_rep)
-        expand(
-            os.path.join(DATA_DIR, "Report", "bamReproducibility", "{sample_rep}_bam_correlation_mqc.yaml"),
-            sample_rep=get_sample_reps()
-        ),
-        expand(
-            os.path.join(DATA_DIR, "Report", "bamReproducibility", "{sample_rep}_bam_correlation_stats_mqc.tsv"),
-            sample_rep=get_sample_reps()
-        ),
+            [
+                f"{DATA_DIR}/Report/reproducibility/{{group}}.reproducibility.qc.json",
+                f"{DATA_DIR}/middle_files/replicates/groups/{{group}}/{{group}}.optimal_peak.narrowPeak.gz",
+                f"{DATA_DIR}/Report/reproducibility/{{group}}.replicate_correlations.tsv",
+            ],
+            group=get_sample_reps()
+        ) if get_sample_reps() else [],
 

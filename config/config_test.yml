@@ -45,7 +45,7 @@ project_info:
 workflow_resources:
   compute:
     threads_default: 8
-    memory_gb_default: 32
+    memory_gb_default: 8
   profiles:
     cluster_config: "config/cluster.yaml"
 
@@ -71,6 +71,18 @@ pipeline_steps:
     slocal: 10000
     max-gap: 1000
     broad-cutoff: 0.01
+  replicates:
+    # IDR analysis settings
+    pval_thresh: 1e-3  # P-value threshold for MACS2 peak calling
+    smooth_win: 150  # Smoothing window size for MACS2
+    cap_num_peak: 300000  # Maximum number of peaks to keep
+    pseudoreplication_random_seed: 0  # Random seed for pseudo-replicate splitting (0 = use file hash)
+    disable_tn5_shift: false  # Disable TN5 shift in tagAlign conversion
+    # IDR settings
+    idr_thresh: 0.05  # IDR threshold
+    idr_rank: "signal.value"  # Rank column for IDR: "signal.value", "p.value", or "q.value"
+    peak_combination_method: "idr"  # Method: "idr" or "naive_overlap"
+    nonamecheck: false  # Use -nonamecheck flag for bedtools intersect
 reference:
   genome_index: "{database_dir}/hg38/indices_for_Bowtie2/hg38"
   genome_fasta: "{database_dir}/hg38/hg38.fa"
@@ -78,3 +90,40 @@ reference:
   chrom_sizes: "genes/hg38.chrom.sizes"
   adapter_fasta: "genes/adapter_seqs.fa"
   blacklist: "blacklist/ENCODE_hg38-blacklist.v2.bed"
+  genome_size_bp: "hs"  # Genome size for MACS2: "hs" for human, "mm" for mouse, or actual size in bp
+  genome_size_bp: "hs"  # Genome size for MACS2: "hs" for human, "mm" for mouse, or actual size in bp
+
+pipeline_steps:
+  alignment:
+    aligner: "bowtie2"
+  peaks:
+    use_igg: false
+    igg_token: "IgG"
+    n_intersects: 2
+  peak_qval:
+    CTCF: 0.0001
+    H3K4me1: 0.001
+    H3K4me3: 0.001
+    H3K4me2: 0.001
+    PU.1: 0.000001
+    H3K27ac: 0.001
+    GATA: 0.0001
+  broad_marks:
+    - H3K27me3
+    - H3K9me3
+  broad_params:
+    slocal: 10000
+    max-gap: 1000
+    broad-cutoff: 0.01
+  replicates:
+    # IDR analysis settings
+    pval_thresh: 1e-3  # P-value threshold for MACS2 peak calling
+    smooth_win: 150  # Smoothing window size for MACS2
+    cap_num_peak: 300000  # Maximum number of peaks to keep
+    pseudoreplication_random_seed: 0  # Random seed for pseudo-replicate splitting (0 = use file hash)
+    disable_tn5_shift: false  # Disable TN5 shift in tagAlign conversion
+    # IDR settings
+    idr_thresh: 0.05  # IDR threshold
+    idr_rank: "signal.value"  # Rank column for IDR: "signal.value", "p.value", or "q.value"
+    peak_combination_method: "idr"  # Method: "idr" or "naive_overlap"
+    nonamecheck: false  # Use -nonamecheck flag for bedtools intersect

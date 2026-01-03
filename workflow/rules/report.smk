@@ -158,9 +158,6 @@ rule multiqc:
         expand(f"{DATA_DIR}/Report/preseq/lcextrap_{{sample}}.txt", sample=samps),
         expand(f"{DATA_DIR}/Report/peak_stat/peakcount/{{sample}}_peakcount.txt", sample=sample_noigg),
         expand(f"{DATA_DIR}/Report/peak_stat/coverage/{{sample}}_coverage.tsv", sample=sample_noigg),
-        expand(f"{DATA_DIR}/Report/bamReproducibility/{{sample_rep}}_bam_correlation_mqc.yaml", sample_rep=get_sample_reps()),
-        expand(f"{DATA_DIR}/Report/bamReproducibility/{{sample_rep}}_bam_correlation_stats_mqc.tsv", sample_rep=get_sample_reps()),
-        expand(f"{DATA_DIR}/Report/bedtools_jaccard/{{sample_rep}}_jaccard.txt", sample_rep=get_sample_reps()),
     output:
         f"{DATA_DIR}/Report/multiqc/multiqc_report.html",
         f"{DATA_DIR}/Report/multiqc/multiqc_data/multiqc_data.json"

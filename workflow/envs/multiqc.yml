@@ -10,4 +10,4 @@ dependencies:
   - pandas
   - pytables
   - pip:
-      - 'git+https://github.com/GilbertHan1011/multiomicQc' # works
+      - 'git+https://github.com/GilbertHan1011/multiomicQc' # works reinstall 1229

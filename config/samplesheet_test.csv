@@ -1,4 +1,4 @@
-sample,run,R1,R2,mark,condition,igg,gopeaks,sample_base
+sample,run,R1,R2,mark,condition,igg,gopeaks,replicate_sample_name
 P6-1_test,1,/storage/zhangkaiLab/hanlitian/macrophage/data/CUTTAG/P6-1_test1.fastq.zst,/storage/zhangkaiLab/hanlitian/macrophage/data/CUTTAG/P6-1_test2.fastq.zst,H3K27ac,P6-1,P6-1_IgG,-,P6
 P6-1_test,2,/storage/zhangkaiLab/hanlitian/macrophage/data/CUTTAG/P6-1_test1.fastq.zst,/storage/zhangkaiLab/hanlitian/macrophage/data/CUTTAG/P6-1_test2.fastq.zst,H3K27ac,P6-1,P6-1_IgG,-,P6
 P6-2_test,1,/storage/zhangkaiLab/hanlitian/macrophage/data/CUTTAG/P6-1_test1.fastq.zst,/storage/zhangkaiLab/hanlitian/macrophage/data/CUTTAG/P6-1_test2.fastq.zst,H3K27ac,P6-1,P6-1_IgG,-,P6

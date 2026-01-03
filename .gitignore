@@ -10,5 +10,4 @@ samplesheet.tsv
 .test/data/raw/*.norun
 .test/.RData
 .test/testdata/hg38_chr1*
-20251209_cuttag_sample.csv
-20251215_cuttag_sample.csv
+202*sample.csv

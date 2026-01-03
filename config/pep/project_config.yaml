@@ -14,7 +14,7 @@ pep_version: "2.1.0"
 
 project:
   # Project name (OPTIONAL - overrides project_info.name in config.yml if present)
-  name: "20251210_cuttag_run"
+  name: "20251229_cuttag_run"
   # Raw data root directory (used to resolve {raw_data} placeholders)
   raw_data: "/storage/zhangkaiLab/resource/Collaborators/Hanjie_Li/CUT-seq"
   # NOTE: sample_table here is IGNORED - use project_info.samples.table in config.yml

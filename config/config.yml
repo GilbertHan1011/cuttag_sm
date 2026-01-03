@@ -1,9 +1,9 @@
 project_info:
-  name: "20251111_cuttag_test"
+  name: "20251229_cuttag"
   description: "CUT&Tag macrophage"
   genome: "hg38"
   samples:
-    table: "../config/20251215_cuttag_sample.csv"
+    table: "../config/20251229_cuttag_sample.csv"
     pep_config: "../config/pep/project_config.yaml"
     pep_attributes:
       raw_data_attribute: "raw_data|data/raw"
@@ -32,7 +32,7 @@ project_info:
 workflow_resources:
   compute:
     threads_default: 8
-    memory_gb_default: 32
+    memory_gb_default: 16
   profiles:
     cluster_config: "config/cluster.yaml"
 
@@ -64,4 +64,4 @@ reference:
   genes_bed: "genes/hg38_refseq_genes.bed"
   chrom_sizes: "genes/hg38.chrom.sizes"
   adapter_fasta: "genes/adapter_seqs.fa"
-  blacklist: ""
+  blacklist: "blacklist/ENCODE_hg38-blacklist.v2.bed"

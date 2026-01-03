@@ -114,11 +114,11 @@ The sample sheet should be a CSV file with the following columns:
 - `mark`: Histone mark or protein (e.g., "H3K27ac", "CTCF")
 - `condition`: Experimental condition
 - `igg`: IgG control sample (if applicable)
-- `sample_base`: Base sample name for grouping replicates
+- `replicate_sample_name`: Base sample name for grouping replicates
 
 Example:
 ```csv
-sample,run,R1,R2,mark,condition,igg,gopeaks,sample_base
+sample,run,R1,R2,mark,condition,igg,gopeaks,replicate_sample_name
 Sample1,1,/path/to/Sample1_R1.fastq.gz,/path/to/Sample1_R2.fastq.gz,H3K27ac,Condition1,Sample1_IgG,-,Sample1
 Sample1,2,/path/to/Sample1_rep2_R1.fastq.gz,/path/to/Sample1_rep2_R2.fastq.gz,H3K27ac,Condition1,Sample1_IgG,-,Sample1
 ```
