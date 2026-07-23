@@ -41,6 +41,7 @@ def _hydrate_config(cfg):
     steps = _get_nested(cfg, "pipeline_steps", default={})
     peaks = _get_nested(steps, "peaks", default={})
     preprocessing = _get_nested(steps, "preprocessing", default={})
+    alignment = _get_nested(steps, "alignment", default={})
     workflow_res = _get_nested(cfg, "workflow_resources", default={})
     exec_cfg = _get_nested(workflow_res, "execution", default={})
 
@@ -57,6 +58,9 @@ def _hydrate_config(cfg):
     cfg["BROAD_MARKS"] = _get_nested(steps, "broad_marks", default=[])
     cfg["BROAD_PARAMS"] = _get_nested(steps, "broad_params", default={})
     cfg["TRIM_ADAPTERS"] = preprocessing.get("trim_adapters", False)
+    cfg["alignment_backend"] = alignment.get("backend", "legacy")
+    if cfg["alignment_backend"] not in {"legacy", "tachyon_upstream"}:
+        raise ValueError("pipeline_steps.alignment.backend must be 'legacy' or 'tachyon_upstream'.")
 
     cfg["GENOME"] = refs.get("genome_index", "")
     cfg["FASTA"] = refs.get("genome_fasta", "")
@@ -220,6 +224,7 @@ rule all:
             [
                 f"{DATA_DIR}/Important_processed/Bam/{{sample}}.sorted.markd.bam",
                 f"{DATA_DIR}/Important_processed/Bam/{{sample}}.sorted.markd.fraglen.tsv",
+                f"{DATA_DIR}/Important_processed/ucf/{{sample}}.sorted.markd.ucf",
                 f"{DATA_DIR}/Important_processed/Track/tracks/{{sample}}.bw",
                 f"{DATA_DIR}/Report/preseq/lcextrap_{{sample}}.txt",
             ],
@@ -266,4 +271,3 @@ rule all:
             ],
             group=get_sample_reps()
         ) if get_sample_reps() else [],
-

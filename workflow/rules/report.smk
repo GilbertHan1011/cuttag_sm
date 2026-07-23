@@ -2,8 +2,8 @@
 DATA_DIR = config["output_base_dir"].rstrip("/")
 rule plotFinger:
     input:
-        rules.markdup.output.bam,
-        rules.index_bam.output.bai
+        lambda wc: canonical_bam(wc.sample),
+        lambda wc: canonical_bai(wc.sample)
     output:
         f"{DATA_DIR}/Report/dtools/fingerprint_{{sample}}.tsv"
     conda:
@@ -25,7 +25,7 @@ rule frip_plot:
 
 rule preseq:
     input:
-        rules.markdup.output
+        lambda wc: canonical_bam(wc.sample)
     output:
         f"{DATA_DIR}/preseq/estimates_{{sample}}.txt"
     resources:
@@ -39,7 +39,7 @@ rule preseq:
 
 rule preseq_lcextrap:
     input:
-        rules.markdup.output
+        lambda wc: canonical_bam(wc.sample)
     output:
         f"{DATA_DIR}/Report/preseq/lcextrap_{{sample}}.txt"
     resources:
@@ -55,8 +55,8 @@ rule preseq_lcextrap:
 rule frip:
     input:
         peaks=f"{DATA_DIR}/Important_processed/Peaks/callpeaks/{{sample}}_peaks.bed",
-        bam=rules.markdup.output.bam,
-        bai=rules.index_bam.output.bai
+        bam=lambda wc: canonical_bam(wc.sample),
+        bai=lambda wc: canonical_bai(wc.sample)
     output:
         f"{DATA_DIR}/Report/plotEnrichment/frip_{{sample}}.png", f"{DATA_DIR}/Report/plotEnrichment/frip_{{sample}}.tsv"
     conda:
@@ -175,4 +175,3 @@ rule multiqc:
             -f \
             >> {log} 2>&1
         """
-

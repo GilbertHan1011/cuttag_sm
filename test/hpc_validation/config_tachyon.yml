@@ -1,0 +1,14 @@
+project_info:
+  samples:
+    table: /storage/zhangkaiLab/hanlitian/macrophage/validation/20260723_tachyon_backend/code/cuttag_sm/test/hpc_validation/annotation.csv
+    pep_config: /storage/zhangkaiLab/hanlitian/macrophage/validation/20260723_tachyon_backend/code/cuttag_sm/config/pep/project_config.yaml
+  outputs:
+    root: /storage/zhangkaiLab/hanlitian/macrophage/validation/20260723_tachyon_backend/results/cuttag/tachyon
+
+pipeline_steps:
+  alignment:
+    backend: tachyon_upstream
+    tachyon_upstream:
+      executable: /storage/zhangkaiLab/hanlitian/macrophage/validation/20260723_tachyon_backend/bin/tachyon-upstream
+      index: /storage/zhangkaiLab/hanlitian/database/algin_ref/atac_pipeline/hg38/indices_for_BWA-MEM2/hg38
+      adapter: illumina

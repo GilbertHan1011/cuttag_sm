@@ -26,8 +26,12 @@ rule callpeaks_macs2_broad:
     resources:
         mem_mb=32000,
         runtime = 60,
-    wrapper:
-        "v2.9.1/bio/macs2/callpeak"
+    conda:
+        "../envs/macs2.yml"
+    shell:
+        "mkdir -p $(dirname {output[0]:q}) && "
+        "macs2 callpeak -t {input.treatment:q} -n macs2_broad_{wildcards.sample:q} "
+        "--outdir $(dirname {output[0]:q}) {params.extra} > {log:q} 2>&1"
 
 rule callpeaks_macs2_narrow:
     input:
@@ -50,8 +54,12 @@ rule callpeaks_macs2_narrow:
     resources:
         mem_mb=32000,
         runtime = 60,
-    wrapper:
-        "v2.9.1/bio/macs2/callpeak"
+    conda:
+        "../envs/macs2.yml"
+    shell:
+        "mkdir -p $(dirname {output[0]:q}) && "
+        "macs2 callpeak -t {input.treatment:q} -n macs2_narrow_{wildcards.sample:q} "
+        "--outdir $(dirname {output[0]:q}) {params.extra} > {log:q} 2>&1"
 
 rule process_peaks:
     """

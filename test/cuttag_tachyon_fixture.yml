@@ -1,0 +1,12 @@
+project_info:
+  samples:
+    table: /home/gilberthan/disk1/projects/tachyon_upstream/test/e2e_compare/20260722_snakemake_parity/process/cuttag_fixture.samples.csv
+  outputs:
+    root: /home/gilberthan/disk1/projects/tachyon_upstream/test/e2e_compare/20260722_snakemake_parity/result/fixture/cuttag/cuttag_sm_backend_smoke
+pipeline_steps:
+  alignment:
+    backend: tachyon_upstream
+    tachyon_upstream:
+      executable: /home/gilberthan/disk1/projects/tachyon_upstream/target/release/tachyon-upstream
+      index: /home/gilberthan/disk1/database/genome/hg38/hg38.fa
+      adapter: illumina

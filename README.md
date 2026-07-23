@@ -77,7 +77,12 @@ project_info:
 
 pipeline_steps:
   alignment:
+    backend: "legacy"  # or "tachyon_upstream"
     aligner: "bowtie2"  # or "bwa-mem2"
+    tachyon_upstream:
+      executable: "/path/to/tachyon-upstream"
+      index: "/path/to/bwa-mem2-index-prefix"
+      adapter: "illumina"
   peaks:
     use_igg: false
     igg_token: "IgG"
@@ -102,6 +107,14 @@ reference:
   adapter_fasta: "genes/adapter_seqs.fa"
   blacklist: ""  # Optional: path to blacklist BED file
 ```
+
+#### Tachyon-Upstream backend
+
+Set `pipeline_steps.alignment.backend: tachyon_upstream` to run paired raw
+FASTQs through Tachyon-Upstream. It writes the existing canonical BAM/BAI,
+native UCF, and stats JSON; downstream peak calling and QC are unchanged.
+It requires a BWA-MEM2 index, is paired-end only, and replaces fastp,
+legacy alignment, Sambamba markdup, and separate BAM indexing.
 
 ### Sample Sheet Format
 
@@ -170,6 +183,8 @@ snakemake --configfile config/config.yml multiqc_report.html
 - **Sorting**: Coordinate-sorted BAM files
 - **Duplicate marking**: Sambamba markdup
 - **Indexing**: BAM index generation
+- **Optional Tachyon-Upstream**: Raw paired FASTQ preprocessing, BWA-MEM2
+  alignment, duplicate marking, BAM indexing, native UCF, and stats in one job
 
 ### 3. Post-alignment (`rules/postalign.smk`)
 

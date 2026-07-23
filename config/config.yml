@@ -38,7 +38,12 @@ workflow_resources:
 
 pipeline_steps:
   alignment:
+    backend: "legacy"
     aligner: "bowtie2"
+    tachyon_upstream:
+      executable: "/home/gilberthan/disk1/projects/tachyon_upstream/target/release/tachyon-upstream"
+      index: "{database_dir}/hg38/indices_for_BWA-MEM2/hg38"
+      adapter: "illumina"
   peaks:
     use_igg: false
     igg_token: "IgG"

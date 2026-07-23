@@ -1,0 +1,10 @@
+project_info:
+  samples:
+    table: /storage/zhangkaiLab/hanlitian/macrophage/validation/20260723_tachyon_backend/code/cuttag_sm/test/hpc_validation/annotation.csv
+    pep_config: /storage/zhangkaiLab/hanlitian/macrophage/validation/20260723_tachyon_backend/code/cuttag_sm/config/pep/project_config.yaml
+  outputs:
+    root: /storage/zhangkaiLab/hanlitian/macrophage/validation/20260723_tachyon_backend/results/cuttag/legacy
+
+pipeline_steps:
+  alignment:
+    backend: legacy

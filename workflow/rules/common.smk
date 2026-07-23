@@ -159,6 +159,27 @@ def _all_raw_fastqs(sample):
     return r1, r2
 
 
+def _paired_raw_fastqs(sample):
+    rows = st[st["sample"] == sample]
+    if rows.empty:
+        raise ValueError(f"No sample-sheet rows for {sample}.")
+    r1, r2 = [], []
+    for _, row in rows.iterrows():
+        if pd.isna(row["R1"]) or pd.isna(row["R2"]) or not str(row["R1"]).strip() or not str(row["R2"]).strip():
+            raise ValueError(f"Sample {sample} has missing paired FASTQ input.")
+        r1.append(str(row["R1"]))
+        r2.append(str(row["R2"]))
+    return r1, r2
+
+
+def canonical_bam(sample):
+    return f"{get_data_dir()}/Important_processed/Bam/{sample}.sorted.markd.bam"
+
+
+def canonical_bai(sample):
+    return f"{canonical_bam(sample)}.bai"
+
+
 def get_sorted_bams_for_sample(wildcards):
     """Build paths to per-run sorted BAMs for a sample."""
     runs = get_runs_for_sample(wildcards)

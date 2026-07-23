@@ -1,0 +1,2 @@
+sample,run,R1,R2,mark,condition,igg,batch,replicate_sample_name
+B51-1_CUT22,1,/storage/zhangkaiLab/resource/Collaborators/Hanjie_Li/CUT-seq/CUT22/B51-1_L3_Q0103W0150.R1.fastq.zst,/storage/zhangkaiLab/resource/Collaborators/Hanjie_Li/CUT-seq/CUT22/B51-1_L3_Q0103W0150.R2.fastq.zst,H3K27ac,NE buffer,B51-1_CUT22,CUT22,B51

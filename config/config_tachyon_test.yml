@@ -1,0 +1,3 @@
+pipeline_steps:
+  alignment:
+    backend: "tachyon_upstream"

@@ -32,6 +32,25 @@ properties:
   BLACKLIST:
     type: string
     description: optional path to tab-delimited file of blacklisted genomic regions to filter out
+  pipeline_steps:
+    type: object
+    properties:
+      alignment:
+        type: object
+        properties:
+          backend:
+            type: string
+            enum: [legacy, tachyon_upstream]
+          tachyon_upstream:
+            type: object
+            properties:
+              executable:
+                type: string
+              index:
+                type: string
+              adapter:
+                type: string
+                enum: [illumina, nextera, bgi, none]
     
 
 required:

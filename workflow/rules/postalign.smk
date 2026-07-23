@@ -1,10 +1,11 @@
 
 DATA_DIR = config["output_base_dir"].rstrip("/")
+ALIGNMENT_BACKEND = config["alignment_backend"]
 
 rule tracks:
     input:
-        bam = rules.markdup.output.bam,
-        bai = rules.index_bam.output.bai,
+        bam = lambda wc: canonical_bam(wc.sample),
+        bai = lambda wc: canonical_bai(wc.sample),
     output:
         f"{DATA_DIR}/Important_processed/Track/tracks/{{sample}}.bw"
     conda:
@@ -15,6 +16,28 @@ rule tracks:
     threads: 8
     shell:
         "bamCoverage -b {input[0]} -o {output} --binSize 10 --smoothLength 50 --normalizeUsing CPM -p {threads} "
+
+if ALIGNMENT_BACKEND == "legacy":
+    rule bam_to_ucf:
+        input:
+            bam = lambda wc: canonical_bam(wc.sample),
+            chrom_sizes = config["CSIZES"]
+        output:
+            ucf = f"{DATA_DIR}/Important_processed/ucf/{{sample}}.sorted.markd.ucf"
+        params:
+            ucf_cli = config.get("UCF_CLI", "ucf-cli"),
+            outdir = lambda wc, output: os.path.dirname(output.ucf)
+        resources:
+            mem_mb=8000,
+            runtime=240,
+        threads: 1
+        shell:
+            "mkdir -p {params.outdir:q} && "
+            "{params.ucf_cli:q} build event-1d "
+            "--input {input.bam:q} "
+            "--output {output.ucf:q} "
+            "--chrom-sizes {input.chrom_sizes:q} "
+            "--assay cut-and-tag"
 
 rule merge_bw:
     input:
@@ -31,7 +54,7 @@ rule merge_bw:
 
 rule fraglength:
     input:
-        rules.markdup.output
+        lambda wc: canonical_bam(wc.sample)
     output:
         f"{DATA_DIR}/Important_processed/Bam/{{sample}}.sorted.markd.fraglen.tsv"
     conda:
@@ -63,4 +86,3 @@ rule fraglength_plot:
             yaxis_title='Counts', 
             legend_title_text='Samples')
         fraglen.write_html(str(output))
-
